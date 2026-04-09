@@ -1,0 +1,460 @@
+"""
+=============================================================================
+STREAMLIT DEMO: BAYESIAN NEURAL NETWORKS FOR CANCER DETECTION
+=============================================================================
+Interactive demonstration of uncertainty quantification in medical imaging.
+
+Run with: streamlit run app.py
+
+Features:
+- Upload histopathology images for prediction
+- Compare Deterministic vs. Laplace vs. MC Dropout
+- Visualize predictive uncertainty
+- Explore pre-loaded example images
+=============================================================================
+"""
+
+import streamlit as st
+import torch
+import torch.nn.functional as F
+import numpy as np
+from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from pathlib import Path
+import io
+
+# Import project modules
+from config import DEVICE, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, MODELS_DIR
+from models import load_model, LaplaceWrapper, create_deterministic_model
+from data import get_transforms
+
+# =============================================================================
+# Page Configuration
+# =============================================================================
+st.set_page_config(
+    page_title="BNN Cancer Detection",
+    page_icon="🔬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# =============================================================================
+# Custom CSS
+# =============================================================================
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
+    .sub-header {
+        font-size: 1.2rem;
+        color: #666;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        border-radius: 10px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+    .uncertainty-low { color: #28a745; }
+    .uncertainty-medium { color: #ffc107; }
+    .uncertainty-high { color: #dc3545; }
+    .prediction-positive { color: #dc3545; font-weight: bold; }
+    .prediction-negative { color: #28a745; font-weight: bold; }
+</style>
+""", unsafe_allow_html=True)
+
+
+# =============================================================================
+# Model Loading (Cached)
+# =============================================================================
+@st.cache_resource
+def load_models():
+    """Load all trained models (cached for performance)."""
+    models = {}
+    
+    # Check if models exist
+    det_path = MODELS_DIR / "deterministic_model.pt"
+    mc_path = MODELS_DIR / "mc_dropout_model.pt"
+    
+    if not det_path.exists():
+        return None
+    
+    # Load deterministic model
+    models['deterministic'] = load_model(det_path, model_type='deterministic')
+    models['deterministic'].eval()
+    
+    # Load MC Dropout model
+    if mc_path.exists():
+        models['mc_dropout'] = load_model(mc_path, model_type='mc_dropout')
+    
+    # Create Laplace wrapper (will need to be fitted)
+    models['laplace'] = LaplaceWrapper(models['deterministic'])
+    
+    return models
+
+
+# =============================================================================
+# Prediction Functions
+# =============================================================================
+def preprocess_image(image: Image.Image) -> torch.Tensor:
+    """Preprocess an image for model input."""
+    # Resize to expected size
+    image = image.resize((IMAGE_SIZE, IMAGE_SIZE))
+    
+    # Convert to RGB if necessary
+    if image.mode != 'RGB':
+        image = image.convert('RGB')
+    
+    # Convert to tensor
+    img_array = np.array(image) / 255.0
+    img_tensor = torch.tensor(img_array, dtype=torch.float32).permute(2, 0, 1)
+    
+    # Normalize with ImageNet stats
+    mean = torch.tensor(IMAGENET_MEAN).view(3, 1, 1)
+    std = torch.tensor(IMAGENET_STD).view(3, 1, 1)
+    img_tensor = (img_tensor - mean) / std
+    
+    return img_tensor.unsqueeze(0).to(DEVICE)
+
+
+def predict_deterministic(model, image_tensor):
+    """Get prediction from deterministic model."""
+    model.eval()
+    with torch.no_grad():
+        logits = model(image_tensor)
+        prob = torch.sigmoid(logits).item()
+    return prob, 0.0  # No uncertainty for deterministic
+
+
+def predict_mc_dropout(model, image_tensor, n_samples=50):
+    """Get prediction with MC Dropout uncertainty."""
+    model.train()  # Enable dropout
+    
+    probs = []
+    with torch.no_grad():
+        for _ in range(n_samples):
+            logits = model(image_tensor)
+            prob = torch.sigmoid(logits)
+            probs.append(prob.item())
+    
+    probs = np.array(probs)
+    mean_prob = probs.mean()
+    uncertainty = probs.std()
+    
+    return mean_prob, uncertainty
+
+
+def predict_laplace(laplace_model, image_tensor, n_samples=100):
+    """Get prediction with Laplace approximation uncertainty."""
+    mean_prob, uncertainty = laplace_model.predict_with_uncertainty(
+        image_tensor, n_samples=n_samples
+    )
+    return mean_prob.item(), uncertainty.item()
+
+
+# =============================================================================
+# Visualization Functions
+# =============================================================================
+def create_probability_gauge(prob, title="Probability"):
+    """Create a gauge chart for probability visualization."""
+    fig, ax = plt.subplots(figsize=(6, 3))
+    
+    # Create horizontal bar
+    ax.barh([0], [prob], color='#dc3545' if prob > 0.5 else '#28a745', height=0.5)
+    ax.barh([0], [1-prob], left=[prob], color='#e9ecef', height=0.5)
+    
+    # Add threshold line
+    ax.axvline(x=0.5, color='#333', linestyle='--', linewidth=2)
+    
+    # Styling
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.5, 0.5)
+    ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
+    ax.set_xticklabels(['0%', '25%', '50%', '75%', '100%'])
+    ax.set_yticks([])
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    # Add probability text
+    ax.text(prob, 0, f'{prob*100:.1f}%', ha='center', va='bottom', fontsize=16, fontweight='bold')
+    
+    plt.tight_layout()
+    return fig
+
+
+def create_uncertainty_visualization(results):
+    """Create comparison visualization of model uncertainties."""
+    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
+    
+    models = ['Deterministic', 'Laplace', 'MC Dropout']
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    
+    for ax, (model_name, result), color in zip(axes, results.items(), colors):
+        prob = result['probability']
+        uncertainty = result['uncertainty']
+        
+        # Create error bar style visualization
+        ax.bar([0], [prob], color=color, alpha=0.7, width=0.5)
+        if uncertainty > 0:
+            ax.errorbar([0], [prob], yerr=[uncertainty], color='black', 
+                       capsize=10, capthick=2, linewidth=2)
+        
+        ax.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5)
+        ax.set_ylim(0, 1)
+        ax.set_xlim(-0.5, 0.5)
+        ax.set_xticks([])
+        ax.set_ylabel('Cancer Probability')
+        ax.set_title(f'{model_name}\nP={prob:.3f} ± {uncertainty:.3f}', fontsize=12)
+    
+    plt.tight_layout()
+    return fig
+
+
+def uncertainty_color(uncertainty):
+    """Get color class based on uncertainty level."""
+    if uncertainty < 0.1:
+        return "uncertainty-low"
+    elif uncertainty < 0.2:
+        return "uncertainty-medium"
+    else:
+        return "uncertainty-high"
+
+
+def uncertainty_interpretation(uncertainty):
+    """Get human-readable interpretation of uncertainty."""
+    if uncertainty < 0.05:
+        return "Very confident prediction"
+    elif uncertainty < 0.1:
+        return "Confident prediction"
+    elif uncertainty < 0.15:
+        return "Moderate uncertainty - review recommended"
+    elif uncertainty < 0.2:
+        return "High uncertainty - expert review needed"
+    else:
+        return "Very high uncertainty - requires careful examination"
+
+
+# =============================================================================
+# Main Application
+# =============================================================================
+def main():
+    # Header
+    st.markdown('<p class="main-header">🔬 Bayesian Neural Networks for Cancer Detection</p>', 
+                unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Uncertainty-Aware Histopathologic Image Classification</p>', 
+                unsafe_allow_html=True)
+    
+    # Sidebar
+    st.sidebar.header("⚙️ Settings")
+    
+    mc_samples = st.sidebar.slider(
+        "MC Dropout Samples",
+        min_value=10, max_value=100, value=50, step=10,
+        help="Number of forward passes for MC Dropout"
+    )
+    
+    laplace_samples = st.sidebar.slider(
+        "Laplace Samples",
+        min_value=50, max_value=200, value=100, step=25,
+        help="Number of posterior samples for Laplace"
+    )
+    
+    st.sidebar.markdown("---")
+    st.sidebar.header("📚 About")
+    st.sidebar.markdown("""
+    This demo compares three approaches to neural network predictions:
+    
+    **Deterministic CNN**: Standard point estimate without uncertainty.
+    
+    **Laplace Approximation**: Gaussian approximation to the posterior 
+    distribution of weights, centered at the MAP estimate.
+    
+    **MC Dropout**: Uses dropout at test time to approximate Bayesian inference.
+    """)
+    
+    # Load models
+    models = load_models()
+    
+    if models is None:
+        st.error("""
+        ⚠️ **Trained models not found!**
+        
+        Please train the models first by running:
+        ```bash
+        python main.py
+        ```
+        
+        This will train the deterministic, Laplace, and MC Dropout models.
+        """)
+        return
+    
+    # Main content
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.header("📤 Upload Image")
+        
+        uploaded_file = st.file_uploader(
+            "Choose a histopathology image",
+            type=['png', 'jpg', 'jpeg', 'tif'],
+            help="Upload a 96x96 histopathology patch"
+        )
+        
+        if uploaded_file is not None:
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Uploaded Image", use_column_width=True)
+            
+            # Preprocess
+            image_tensor = preprocess_image(image)
+            
+            # Run predictions button
+            if st.button("🔍 Analyze Image", type="primary", use_container_width=True):
+                with st.spinner("Running inference..."):
+                    results = {}
+                    
+                    # Deterministic prediction
+                    prob_det, _ = predict_deterministic(models['deterministic'], image_tensor)
+                    results['Deterministic'] = {'probability': prob_det, 'uncertainty': 0.0}
+                    
+                    # Laplace prediction
+                    prob_lap, unc_lap = predict_laplace(
+                        models['laplace'], image_tensor, n_samples=laplace_samples
+                    )
+                    results['Laplace'] = {'probability': prob_lap, 'uncertainty': unc_lap}
+                    
+                    # MC Dropout prediction
+                    if 'mc_dropout' in models:
+                        prob_mc, unc_mc = predict_mc_dropout(
+                            models['mc_dropout'], image_tensor, n_samples=mc_samples
+                        )
+                        results['MC Dropout'] = {'probability': prob_mc, 'uncertainty': unc_mc}
+                    
+                    # Store results in session state
+                    st.session_state['results'] = results
+        else:
+            st.info("👆 Upload an image to get started")
+    
+    with col2:
+        st.header("📊 Results")
+        
+        if 'results' in st.session_state:
+            results = st.session_state['results']
+            
+            # Show comparison visualization
+            fig = create_uncertainty_visualization(results)
+            st.pyplot(fig)
+            plt.close()
+            
+            # Detailed results
+            st.markdown("### Detailed Predictions")
+            
+            cols = st.columns(3)
+            
+            for col, (model_name, result) in zip(cols, results.items()):
+                with col:
+                    prob = result['probability']
+                    unc = result['uncertainty']
+                    
+                    st.markdown(f"**{model_name}**")
+                    
+                    # Prediction
+                    prediction = "Cancer" if prob > 0.5 else "Normal"
+                    pred_class = "prediction-positive" if prob > 0.5 else "prediction-negative"
+                    st.markdown(f"Prediction: <span class='{pred_class}'>{prediction}</span>", 
+                               unsafe_allow_html=True)
+                    
+                    # Probability
+                    st.metric("Probability", f"{prob:.1%}")
+                    
+                    # Uncertainty
+                    if unc > 0:
+                        unc_class = uncertainty_color(unc)
+                        st.markdown(f"Uncertainty: <span class='{unc_class}'>{unc:.3f}</span>", 
+                                   unsafe_allow_html=True)
+            
+            # Clinical interpretation
+            st.markdown("### 🏥 Clinical Interpretation")
+            
+            # Use Laplace uncertainty for interpretation
+            laplace_unc = results['Laplace']['uncertainty']
+            laplace_prob = results['Laplace']['probability']
+            
+            interpretation = uncertainty_interpretation(laplace_unc)
+            
+            if laplace_prob > 0.5:
+                st.warning(f"""
+                **Potential Malignancy Detected** (P = {laplace_prob:.1%})
+                
+                {interpretation}
+                
+                {"⚠️ High uncertainty suggests this case should be reviewed by a pathologist." 
+                 if laplace_unc > 0.15 else ""}
+                """)
+            else:
+                st.success(f"""
+                **No Malignancy Detected** (P = {laplace_prob:.1%})
+                
+                {interpretation}
+                
+                {"ℹ️ Consider additional review due to uncertainty in prediction." 
+                 if laplace_unc > 0.15 else ""}
+                """)
+        else:
+            st.info("Upload an image and click 'Analyze' to see predictions")
+    
+    # Educational section
+    st.markdown("---")
+    st.header("📖 Understanding Uncertainty")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        ### Epistemic Uncertainty
+        *"What the model doesn't know"*
+        
+        Arises from limited training data or out-of-distribution inputs.
+        Can be reduced with more data.
+        
+        **Clinical relevance**: High epistemic uncertainty suggests the 
+        model hasn't seen similar cases before.
+        """)
+    
+    with col2:
+        st.markdown("""
+        ### Aleatoric Uncertainty
+        *"Inherent noise in the data"*
+        
+        Arises from ambiguous tissue patterns or imaging artifacts.
+        Cannot be reduced with more data.
+        
+        **Clinical relevance**: High aleatoric uncertainty may indicate 
+        genuinely ambiguous pathology.
+        """)
+    
+    with col3:
+        st.markdown("""
+        ### Why It Matters
+        
+        Traditional neural networks give overconfident predictions.
+        Bayesian methods provide calibrated uncertainties.
+        
+        **Clinical application**: 
+        - Prioritize high-uncertainty cases for expert review
+        - Improve diagnostic workflow efficiency
+        - Reduce false negatives in screening
+        """)
+
+
+if __name__ == "__main__":
+    main()
