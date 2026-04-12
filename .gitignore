@@ -1,5 +1,6 @@
 /__pycache__/
 /.venv
 /data
+/data_new
 /data_utils
 /models
