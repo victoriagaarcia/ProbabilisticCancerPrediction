@@ -26,7 +26,8 @@ import io
 
 # Import project modules
 from config import DEVICE, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, MODELS_DIR
-from models import load_model, LaplaceWrapper, create_deterministic_model
+# from models import load_model, LaplaceWrapper, create_deterministic_model
+from models import load_model, load_laplace_model
 from data import get_transforms
 
 # =============================================================================
@@ -83,6 +84,7 @@ def load_models():
     # Check if models exist
     det_path = MODELS_DIR / "deterministic_model.pt"
     mc_path = MODELS_DIR / "mc_dropout_model.pt"
+    lap_path = MODELS_DIR / "laplace_model.pt"
     
     if not det_path.exists():
         return None
@@ -96,7 +98,11 @@ def load_models():
         models['mc_dropout'] = load_model(mc_path, model_type='mc_dropout')
     
     # Create Laplace wrapper (will need to be fitted)
-    models['laplace'] = LaplaceWrapper(models['deterministic'])
+    # models['laplace'] = LaplaceWrapper(models['deterministic'])
+
+    # Load Laplace model if exists
+    if lap_path.exists():
+        models['laplace'] = load_laplace_model(lap_path)
     
     return models
 
@@ -129,27 +135,35 @@ def predict_deterministic(model, image_tensor):
     """Get prediction from deterministic model."""
     model.eval()
     with torch.no_grad():
-        logits = model(image_tensor)
-        prob = torch.sigmoid(logits).item()
+        # logits = model(image_tensor)
+        # prob = torch.sigmoid(logits).item()
+        # prob = torch.softmax(logits, dim=1)[0, 1].item()  # NUM_CLASSES=2, get cancer class probability
+        probs = model.predict_proba(image_tensor)
+        prob = probs[0, 1].item()  # Get probability of cancer class
     return prob, 0.0  # No uncertainty for deterministic
 
 
 def predict_mc_dropout(model, image_tensor, n_samples=50):
     """Get prediction with MC Dropout uncertainty."""
-    model.train()  # Enable dropout
-    
-    probs = []
-    with torch.no_grad():
-        for _ in range(n_samples):
-            logits = model(image_tensor)
-            prob = torch.sigmoid(logits)
-            probs.append(prob.item())
-    
-    probs = np.array(probs)
-    mean_prob = probs.mean()
-    uncertainty = probs.std()
-    
-    return mean_prob, uncertainty
+    # model.train()  # Enable dropout
+    # probs = []
+    # with torch.no_grad():
+    #     for _ in range(n_samples):
+    #         logits = model(image_tensor)
+    #         prob = torch.sigmoid(logits)
+    #         probs.append(prob.item())
+    # probs = np.array(probs)
+    # mean_prob = probs.mean()
+    # uncertainty = probs.std()
+    # return mean_prob, uncertainty
+
+    mean_probs, uncertainty, _ = model.predict_with_uncertainty(
+        image_tensor, n_samples=n_samples
+    )
+    prob = mean_probs[0, 1].item()
+    unc = uncertainty[0].item()
+    return prob, unc
+
 
 
 def predict_laplace(laplace_model, image_tensor, n_samples=100):
@@ -157,7 +171,10 @@ def predict_laplace(laplace_model, image_tensor, n_samples=100):
     mean_prob, uncertainty = laplace_model.predict_with_uncertainty(
         image_tensor, n_samples=n_samples
     )
-    return mean_prob.item(), uncertainty.item()
+    # return mean_prob.item(), uncertainty.item()
+    prob = mean_probs[0, 1].item()
+    unc = uncertainty[0].item()
+    return prob, unc
 
 
 # =============================================================================
@@ -194,31 +211,32 @@ def create_probability_gauge(prob, title="Probability"):
 
 def create_uncertainty_visualization(results):
     """Create comparison visualization of model uncertainties."""
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
-    
-    models = ['Deterministic', 'Laplace', 'MC Dropout']
+    n_models = len(results)
+    fig, axes = plt.subplots(1, n_models, figsize=(4 * n_models, 4))
+
+    if n_models == 1:
+        axes = [axes]
+
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
-    
+
     for ax, (model_name, result), color in zip(axes, results.items(), colors):
         prob = result['probability']
         uncertainty = result['uncertainty']
-        
-        # Create error bar style visualization
+
         ax.bar([0], [prob], color=color, alpha=0.7, width=0.5)
         if uncertainty > 0:
-            ax.errorbar([0], [prob], yerr=[uncertainty], color='black', 
-                       capsize=10, capthick=2, linewidth=2)
-        
+            ax.errorbar([0], [prob], yerr=[uncertainty], color='black',
+                        capsize=10, capthick=2, linewidth=2)
+
         ax.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5)
         ax.set_ylim(0, 1)
         ax.set_xlim(-0.5, 0.5)
         ax.set_xticks([])
         ax.set_ylabel('Cancer Probability')
         ax.set_title(f'{model_name}\nP={prob:.3f} ± {uncertainty:.3f}', fontsize=12)
-    
+
     plt.tight_layout()
     return fig
-
 
 def uncertainty_color(uncertainty):
     """Get color class based on uncertainty level."""
@@ -327,10 +345,11 @@ def main():
                     results['Deterministic'] = {'probability': prob_det, 'uncertainty': 0.0}
                     
                     # Laplace prediction
-                    prob_lap, unc_lap = predict_laplace(
-                        models['laplace'], image_tensor, n_samples=laplace_samples
-                    )
-                    results['Laplace'] = {'probability': prob_lap, 'uncertainty': unc_lap}
+                    if 'laplace' in models:
+                        prob_lap, unc_lap = predict_laplace(
+                            models['laplace'], image_tensor, n_samples=laplace_samples
+                        )
+                        results['Laplace'] = {'probability': prob_lap, 'uncertainty': unc_lap}
                     
                     # MC Dropout prediction
                     if 'mc_dropout' in models:
@@ -358,7 +377,7 @@ def main():
             # Detailed results
             st.markdown("### Detailed Predictions")
             
-            cols = st.columns(3)
+            cols = st.columns(len(results))
             
             for col, (model_name, result) in zip(cols, results.items()):
                 with col:
@@ -386,10 +405,22 @@ def main():
             st.markdown("### 🏥 Clinical Interpretation")
             
             # Use Laplace uncertainty for interpretation
-            laplace_unc = results['Laplace']['uncertainty']
-            laplace_prob = results['Laplace']['probability']
-            
-            interpretation = uncertainty_interpretation(laplace_unc)
+            # laplace_unc = results['Laplace']['uncertainty']
+            # laplace_prob = results['Laplace']['probability']
+            # interpretation = uncertainty_interpretation(laplace_unc)
+
+            # Use best available model for interpretation (prefer Laplace, then MC Dropout)
+            if 'Laplace' in results:
+                ref_model = 'Laplace'
+            elif 'MC Dropout' in results:
+                ref_model = 'MC Dropout'
+            else:
+                ref_model = 'Deterministic'
+
+            ref_unc = results[ref_model]['uncertainty']
+            ref_prob = results[ref_model]['probability']
+
+            interpretation = uncertainty_interpretation(ref_unc)
             
             if laplace_prob > 0.5:
                 st.warning(f"""

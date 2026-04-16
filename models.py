@@ -22,7 +22,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
-from typing import Tuple, Optional, Union
+from typing import Tuple, Optional, Union, Any
 from pathlib import Path
 import numpy as np
 
@@ -454,3 +454,26 @@ def load_model(model_path: Union[str, Path], model_type: str = 'deterministic') 
     
     model.load_state_dict(torch.load(model_path, map_location=DEVICE))
     return model.to(DEVICE)
+
+# Función para cargar un modelo Laplace
+def load_laplace_model(model_path: Union[str, Path]) -> LaplaceWrapper:
+    """
+    Load a fitted Laplace model from disk.
+
+    The checkpoint must contain:
+    - base_model_state: state_dict of the deterministic base model
+    - laplace_obj: fitted Laplace object
+    - laplace_fitted: whether Laplace was fitted
+    """
+    checkpoint = torch.load(model_path, map_location=DEVICE)
+
+    base_model = DeterministicCNN(pretrained=False)
+    base_model.load_state_dict(checkpoint['base_model_state'])
+    base_model = base_model.to(DEVICE)
+    base_model.eval()
+
+    laplace_wrapper = LaplaceWrapper(base_model)
+    laplace_wrapper.la = checkpoint['laplace_obj']
+    laplace_wrapper.fitted = checkpoint.get('laplace_fitted', True)
+
+    return laplace_wrapper

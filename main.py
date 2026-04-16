@@ -46,7 +46,8 @@ from models import (
     create_deterministic_model, 
     create_mc_dropout_model,
     LaplaceWrapper,
-    load_model
+    load_model,
+    load_laplace_model
 )
 from train import train_deterministic_model, train_mc_dropout_model
 from evaluate import full_evaluation, generate_uncertainty_report
@@ -167,9 +168,15 @@ def train_pipeline(args, train_loader, val_loader):
     print(f"  Prior precision optimized via marginal likelihood")
     
     # Save Laplace model
+    # torch.save({
+    #     'base_model_state': det_model.state_dict(),
+    #     'laplace_fitted': True
+    # }, MODELS_DIR / "laplace_model.pt")
     torch.save({
         'base_model_state': det_model.state_dict(),
-        'laplace_fitted': True
+        'laplace_obj': laplace_model.la,
+        'laplace_fitted': laplace_model.fitted,
+        'model_type': 'laplace'
     }, MODELS_DIR / "laplace_model.pt")
     
     # =========================================================================
@@ -368,8 +375,16 @@ Examples:
         mc_model = load_model(mc_model_path, model_type='mc_dropout')
         
         # Create and fit Laplace model
-        laplace_model = LaplaceWrapper(det_model)
-        laplace_model.fit(train_loader)
+        # laplace_model = LaplaceWrapper(det_model)
+        # laplace_model.fit(train_loader)
+
+        # Load Laplace model if exists, otherwise fit it
+        laplace_model_path = MODELS_DIR / "laplace_model.pt"
+        if laplace_model_path.exists():
+            laplace_model = load_laplace_model(laplace_model_path)
+        else:
+            laplace_model = LaplaceWrapper(det_model)
+            laplace_model.fit(train_loader)
         
         print("✓ Models loaded successfully")
         print(f"Models loaded at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
