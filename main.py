@@ -34,6 +34,7 @@ from pathlib import Path
 
 import torch
 import numpy as np
+import pandas as pd
 
 # Import project modules
 from config import (
@@ -46,8 +47,7 @@ from models import (
     create_deterministic_model, 
     create_mc_dropout_model,
     LaplaceWrapper,
-    load_model,
-    load_laplace_model
+    load_model
 )
 from train import train_deterministic_model, train_mc_dropout_model
 from evaluate import full_evaluation, generate_uncertainty_report
@@ -110,6 +110,52 @@ def check_data_exists() -> bool:
         return False
     return True
 
+def save_data_splits(train_df: pd.DataFrame,
+                     val_df: pd.DataFrame,
+                     test_df: pd.DataFrame,
+                     save_dir: Path = RESULTS_DIR / "data_splits",
+                     seed: int = RANDOM_SEED) -> None:
+    """
+    Save the exact data splits used in training/evaluation so they can be
+    reused later (e.g. in the demo) without relying on random seeds.
+
+    Args:
+        train_df: Training split dataframe
+        val_df: Validation split dataframe
+        test_df: Test split dataframe
+        save_dir: Directory where CSV files and metadata will be stored
+        seed: Random seed used for the current run
+    """
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    train_path = save_dir / "train_split.csv"
+    val_path = save_dir / "val_split.csv"
+    test_path = save_dir / "test_split.csv"
+    meta_path = save_dir / "split_metadata.json"
+
+    train_df.to_csv(train_path, index=False)
+    val_df.to_csv(val_path, index=False)
+    test_df.to_csv(test_path, index=False)
+
+    split_metadata = {
+        "seed": seed,
+        "train_size": int(len(train_df)),
+        "val_size": int(len(val_df)),
+        "test_size": int(len(test_df)),
+        "train_path": str(train_path),
+        "val_path": str(val_path),
+        "test_path": str(test_path),
+    }
+
+    with open(meta_path, "w") as f:
+        json.dump(split_metadata, f, indent=2)
+
+    print("\n✓ Exact data splits saved for later reuse")
+    print(f"  Train split: {train_path}")
+    print(f"  Val split:   {val_path}")
+    print(f"  Test split:  {test_path}")
+    print(f"  Metadata:    {meta_path}")
+
 
 def train_pipeline(args, train_loader, val_loader):
     """
@@ -168,16 +214,16 @@ def train_pipeline(args, train_loader, val_loader):
     print(f"  Prior precision optimized via marginal likelihood")
     
     # Save Laplace model
-    # torch.save({
-    #     'base_model_state': det_model.state_dict(),
-    #     'laplace_fitted': True
-    # }, MODELS_DIR / "laplace_model.pt")
     torch.save({
         'base_model_state': det_model.state_dict(),
-        'laplace_obj': laplace_model.la,
         'laplace_fitted': laplace_model.fitted,
-        'model_type': 'laplace'
     }, MODELS_DIR / "laplace_model.pt")
+    # torch.save({
+    #     'base_model_state': det_model.state_dict(),
+    #     'laplace_obj': laplace_model.la, # esto no es serializable
+    #     'laplace_fitted': laplace_model.fitted,
+    #     'model_type': 'laplace'
+    # }, MODELS_DIR / "laplace_model.pt")
     
     # =========================================================================
     # STEP 3: Train MC Dropout Model
@@ -345,6 +391,15 @@ Examples:
     print(f"  Training samples:   {len(train_df):,}")
     print(f"  Validation samples: {len(val_df):,}")
     print(f"  Test samples:       {len(test_df):,}")
+
+    # Save splits used in training
+    save_data_splits(
+        train_df=train_df,
+        val_df=val_df,
+        test_df=test_df,
+        save_dir=RESULTS_DIR / "data_splits",
+        seed=args.seed
+    )
     
     # Create data loaders
     train_loader, val_loader, test_loader = get_dataloaders(
@@ -378,13 +433,10 @@ Examples:
         # laplace_model = LaplaceWrapper(det_model)
         # laplace_model.fit(train_loader)
 
-        # Load Laplace model if exists, otherwise fit it
-        laplace_model_path = MODELS_DIR / "laplace_model.pt"
-        if laplace_model_path.exists():
-            laplace_model = load_laplace_model(laplace_model_path)
-        else:
-            laplace_model = LaplaceWrapper(det_model)
-            laplace_model.fit(train_loader)
+        # Rebuild and fit Laplace model
+        # laplace_model_path = MODELS_DIR / "laplace_model.pt"
+        laplace_model = LaplaceWrapper(det_model)
+        laplace_model.fit(train_loader)
         
         print("✓ Models loaded successfully")
         print(f"Models loaded at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

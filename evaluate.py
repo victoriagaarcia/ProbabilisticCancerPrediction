@@ -70,7 +70,7 @@ def evaluate_deterministic(
     for images, labels in tqdm(test_loader, desc='Evaluating Deterministic'):
         images = images.to(device, non_blocking=True)
 
-        with torch.cuda.amp.autocast(enabled=use_cuda):
+        with torch.amp.autocast(enabled=use_cuda, device_type=device.type):
             logits = model(images)
             probs = F.softmax(logits, dim=1)
         

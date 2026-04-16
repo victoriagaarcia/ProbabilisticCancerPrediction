@@ -18,16 +18,22 @@ import streamlit as st
 import torch
 import torch.nn.functional as F
 import numpy as np
+import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from pathlib import Path
 import io
+import json
 
 # Import project modules
-from config import DEVICE, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD, MODELS_DIR
-# from models import load_model, LaplaceWrapper, create_deterministic_model
-from models import load_model, load_laplace_model
+from config import (
+    DEVICE, IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD,
+    MODELS_DIR, RESULTS_DIR, BATCH_SIZE
+)
+from models import load_model, LaplaceWrapper #, create_deterministic_model
+# from models import load_model, load_laplace_model
+from data import get_dataloaders
 from data import get_transforms
 
 # =============================================================================
@@ -74,6 +80,45 @@ st.markdown("""
 
 
 # =============================================================================
+# Load training data for Laplace fitting
+# =============================================================================
+@st.cache_resource
+def load_train_loader():
+    """
+    Load the exact train split used during training from saved CSV files,
+    then rebuild the train dataloader for Laplace fitting.
+    """
+    splits_dir = RESULTS_DIR / "data_splits"
+    train_csv = splits_dir / "train_split.csv"
+    val_csv = splits_dir / "val_split.csv"
+    test_csv = splits_dir / "test_split.csv"
+    metadata_json = splits_dir / "split_metadata.json"
+
+    if not train_csv.exists() or not val_csv.exists() or not test_csv.exists():
+        raise FileNotFoundError(
+            f"Saved split files not found in {splits_dir}. "
+            "Run main.py after adding save_data_splits(...) first."
+        )
+
+    train_df = pd.read_csv(train_csv)
+    val_df = pd.read_csv(val_csv)
+    test_df = pd.read_csv(test_csv)
+
+    # Optional metadata check
+    if metadata_json.exists():
+        with open(metadata_json, "r") as f:
+            metadata = json.load(f)
+        expected_seed = metadata.get("seed", None)
+        st.sidebar.caption(f"Loaded saved data splits (seed={expected_seed})")
+
+    train_loader, _, _ = get_dataloaders(
+        train_df, val_df, test_df,
+        batch_size=BATCH_SIZE
+    )
+
+    return train_loader
+
+# =============================================================================
 # Model Loading (Cached)
 # =============================================================================
 @st.cache_resource
@@ -84,7 +129,7 @@ def load_models():
     # Check if models exist
     det_path = MODELS_DIR / "deterministic_model.pt"
     mc_path = MODELS_DIR / "mc_dropout_model.pt"
-    lap_path = MODELS_DIR / "laplace_model.pt"
+    # lap_path = MODELS_DIR / "laplace_model.pt"
     
     if not det_path.exists():
         return None
@@ -101,8 +146,17 @@ def load_models():
     # models['laplace'] = LaplaceWrapper(models['deterministic'])
 
     # Load Laplace model if exists
-    if lap_path.exists():
-        models['laplace'] = load_laplace_model(lap_path)
+    # if lap_path.exists():
+    #     models['laplace'] = load_laplace_model(lap_path)
+
+    # Rebuild and fit Laplace model once, then cache it
+    try:
+        train_loader = load_train_loader()
+        laplace_model = LaplaceWrapper(models['deterministic'])
+        laplace_model.fit(train_loader)
+        models['laplace'] = laplace_model
+    except Exception as e:
+        st.warning(f"Laplace model could not be initialized: {e}")
     
     return models
 
@@ -156,7 +210,7 @@ def predict_mc_dropout(model, image_tensor, n_samples=50):
     # mean_prob = probs.mean()
     # uncertainty = probs.std()
     # return mean_prob, uncertainty
-
+    model.train()  # Enable dropout at test time
     mean_probs, uncertainty, _ = model.predict_with_uncertainty(
         image_tensor, n_samples=n_samples
     )
@@ -168,7 +222,7 @@ def predict_mc_dropout(model, image_tensor, n_samples=50):
 
 def predict_laplace(laplace_model, image_tensor, n_samples=100):
     """Get prediction with Laplace approximation uncertainty."""
-    mean_prob, uncertainty = laplace_model.predict_with_uncertainty(
+    mean_probs, uncertainty = laplace_model.predict_with_uncertainty(
         image_tensor, n_samples=n_samples
     )
     # return mean_prob.item(), uncertainty.item()
@@ -406,7 +460,7 @@ def main():
             
             # Use Laplace uncertainty for interpretation
             # laplace_unc = results['Laplace']['uncertainty']
-            # laplace_prob = results['Laplace']['probability']
+            # ref_prob = results['Laplace']['probability']
             # interpretation = uncertainty_interpretation(laplace_unc)
 
             # Use best available model for interpretation (prefer Laplace, then MC Dropout)
@@ -422,23 +476,23 @@ def main():
 
             interpretation = uncertainty_interpretation(ref_unc)
             
-            if laplace_prob > 0.5:
+            if ref_prob > 0.5:
                 st.warning(f"""
-                **Potential Malignancy Detected** (P = {laplace_prob:.1%})
+                **Potential Malignancy Detected** (P = {ref_prob:.1%})
                 
                 {interpretation}
                 
                 {"⚠️ High uncertainty suggests this case should be reviewed by a pathologist." 
-                 if laplace_unc > 0.15 else ""}
+                 if ref_unc > 0.15 else ""}
                 """)
             else:
                 st.success(f"""
-                **No Malignancy Detected** (P = {laplace_prob:.1%})
+                **No Malignancy Detected** (P = {ref_prob:.1%})
                 
                 {interpretation}
                 
                 {"ℹ️ Consider additional review due to uncertainty in prediction." 
-                 if laplace_unc > 0.15 else ""}
+                 if ref_unc > 0.15 else ""}
                 """)
         else:
             st.info("Upload an image and click 'Analyze' to see predictions")

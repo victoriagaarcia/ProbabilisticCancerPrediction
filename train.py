@@ -148,7 +148,7 @@ class Trainer:
 
         # Automatic Mixed Precision (AMP): usa float16 en GPU para 2-3x speedup
         # en hardware con Tensor Cores (RTX, A100, etc.). En CPU no tiene efecto.
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_cuda)
+        self.scaler = torch.amp.GradScaler(enabled=self.use_cuda)
 
         # Historial de entrenamiento
         self.history = {
@@ -186,7 +186,7 @@ class Trainer:
             self.optimizer.zero_grad()
 
             # autocast: usa float16 automáticamente en GPU (float32 en CPU)
-            with torch.cuda.amp.autocast(enabled=self.use_cuda):
+            with torch.amp.autocast(enabled=self.use_cuda, device_type=self.device.type):
                 logits = self.model(images)
                 loss = self.criterion(logits, labels)
 
@@ -231,7 +231,7 @@ class Trainer:
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
 
-            with torch.cuda.amp.autocast(enabled=self.use_cuda):
+            with torch.amp.autocast(enabled=self.use_cuda, device_type=self.device.type):
                 logits = self.model(images)
                 loss = self.criterion(logits, labels)
             

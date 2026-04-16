@@ -1,0 +1,9 @@
+{
+  "seed": 42,
+  "train_size": 154017,
+  "val_size": 33004,
+  "test_size": 33004,
+  "train_path": "/home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/train_split.csv",
+  "val_path": "/home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/val_split.csv",
+  "test_path": "/home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/test_split.csv"
+}
