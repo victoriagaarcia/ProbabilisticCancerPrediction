@@ -22,6 +22,7 @@ from tqdm import tqdm
 from pathlib import Path
 import json
 import matplotlib.pyplot as plt
+import time
 
 from config import DEVICE, MC_SAMPLES, FIGURES_DIR, RESULTS_DIR
 from models import DeterministicCNN, MCDropoutCNN, LaplaceWrapper
@@ -31,7 +32,8 @@ from metrics import (
     plot_roc_curve,
     plot_uncertainty_histogram,
     compare_models_metrics,
-    print_metrics_table
+    print_metrics_table,
+    compute_triage_metrics
 )
 
 
@@ -118,13 +120,15 @@ def evaluate_mc_dropout(
     
     all_labels = []
     all_probs = []
-    all_uncertainties = []
+    all_epistemic = []
+    all_aleatoric = []
+    all_total = []
     
     for images, labels in tqdm(test_loader, desc='Evaluating MC Dropout'):
         images = images.to(device, non_blocking=True)
         
         # Predicción con incertidumbre
-        mean_probs, epistemic_unc, _ = model.predict_with_uncertainty(
+        mean_probs, epistemic_unc, aleatoric_unc, total_unc, _ = model.predict_with_uncertainty(
             images, n_samples=n_samples
         )
         
@@ -133,12 +137,16 @@ def evaluate_mc_dropout(
         
         all_labels.extend(labels.numpy())
         all_probs.extend(prob_positive)
-        all_uncertainties.extend(epistemic_unc.cpu().numpy())
+        all_epistemic.extend(epistemic_unc.cpu().numpy())
+        all_aleatoric.extend(aleatoric_unc.cpu().numpy())
+        all_total.extend(total_unc.cpu().numpy())
     
     return (
         np.array(all_labels),
         np.array(all_probs),
-        np.array(all_uncertainties)
+        np.array(all_epistemic),
+        np.array(all_aleatoric),
+        np.array(all_total)
     )
 
 
@@ -167,25 +175,31 @@ def evaluate_laplace(
     """
     all_labels = []
     all_probs = []
-    all_uncertainties = []
+    all_epistemic = []
+    all_aleatoric = []
+    all_total = []
     
     for images, labels in tqdm(test_loader, desc='Evaluating Laplace'):
         images = images.to(device, non_blocking=True)
         
         # Predicción con Laplace
-        mean_probs, epistemic_unc = laplace_model.predict_with_uncertainty(images)
+        mean_probs, epistemic_unc, aleatoric_unc, total_unc, _ = laplace_model.predict_with_uncertainty(images)
         
         # Probabilidad de clase positiva
         prob_positive = mean_probs[:, 1].cpu().numpy()
         
         all_labels.extend(labels.numpy())
         all_probs.extend(prob_positive)
-        all_uncertainties.extend(epistemic_unc.cpu().numpy())
+        all_epistemic.extend(epistemic_unc.cpu().numpy())
+        all_aleatoric.extend(aleatoric_unc.cpu().numpy())
+        all_total.extend(total_unc.cpu().numpy())
     
     return (
         np.array(all_labels),
         np.array(all_probs),
-        np.array(all_uncertainties)
+        np.array(all_epistemic),
+        np.array(all_aleatoric),
+        np.array(all_total)
     )
 
 
@@ -242,28 +256,50 @@ def analyze_uncertainty_by_correctness(
     y_pred: np.ndarray
 ) -> Dict[str, float]:
     """
-    Analiza si la incertidumbre es mayor en predicciones incorrectas.
-    
-    Un buen modelo bayesiano debería:
-    - Tener baja incertidumbre cuando acierta
-    - Tener alta incertidumbre cuando falla
-    
+    Analiza si la incertidumbre epistémica es mayor en predicciones incorrectas.
+
+    Un modelo bayesiano bien calibrado debería asignar:
+    - Baja incertidumbre cuando acierta (el posterior está concentrado)
+    - Alta incertidumbre cuando falla (el posterior está difuso)
+
+    El ratio incorrectas/correctas es la métrica clave:
+    - ratio > 1: el modelo "sabe cuándo no sabe" → comportamiento deseable
+    - ratio ≈ 1: la incertidumbre no discrimina entre aciertos y errores
+    - ratio < 1: el modelo es más inseguro cuando acierta (señal de mal calibrado)
+
     Args:
-        uncertainties: Incertidumbre por muestra
-        y_true: Etiquetas reales
-        y_pred: Predicciones
-        
+        uncertainties: Incertidumbre epistémica por muestra [N]
+        y_true: Etiquetas reales [N]
+        y_pred: Predicciones binarias [N]  ← debe ser (proba >= 0.5).astype(int)
+
     Returns:
-        Estadísticas de incertidumbre por grupo
+        Dict con estadísticas por grupo y ratio comparativo
     """
-    correct_mask = y_true == y_pred
-    
+    correct_mask = (y_true == y_pred)
+    incorrect_mask = ~correct_mask
+
+    def _safe_stats(arr):
+        """Estadísticas seguras para arrays potencialmente vacíos."""
+        if len(arr) == 0:
+            return {'mean': float('nan'), 'std': float('nan'), 'count': 0}
+        return {'mean': float(arr.mean()), 'std': float(arr.std()), 'count': int(len(arr))}
+
+    correct_stats   = _safe_stats(uncertainties[correct_mask])
+    incorrect_stats = _safe_stats(uncertainties[incorrect_mask])
+
+    # Ratio: cuántas veces más incierto está el modelo cuando falla
+    # Añadimos eps para evitar división por cero
+    eps = 1e-10
+    ratio = incorrect_stats['mean'] / (correct_stats['mean'] + eps)
+
     return {
-        'mean_uncertainty_correct': uncertainties[correct_mask].mean(),
-        'std_uncertainty_correct': uncertainties[correct_mask].std(),
-        'mean_uncertainty_incorrect': uncertainties[~correct_mask].mean(),
-        'std_uncertainty_incorrect': uncertainties[~correct_mask].std(),
-        'ratio': uncertainties[~correct_mask].mean() / (uncertainties[correct_mask].mean() + 1e-10)
+        'mean_uncertainty_correct':   correct_stats['mean'],
+        'std_uncertainty_correct':    correct_stats['std'],
+        'n_correct':                  correct_stats['count'],
+        'mean_uncertainty_incorrect': incorrect_stats['mean'],
+        'std_uncertainty_incorrect':  incorrect_stats['std'],
+        'n_incorrect':                incorrect_stats['count'],
+        'ratio':                      float(ratio),
     }
 
 
@@ -307,7 +343,15 @@ def full_evaluation(
     print("EVALUANDO MODELO DETERMINISTA")
     print("=" * 60)
 
+    # Medir tiempo de inferencia y uso de memoria para el modelo determinista
+    start_time = time.perf_counter()
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0 # Memoria antes de la inferencia
+
     y_true_det, y_pred_det, conf_det = evaluate_deterministic(det_model, test_loader)
+
+    # Medir tiempo y memoria después de la inferencia
+    end_time = time.perf_counter()
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0 # Memoria después de la inferencia
 
     metrics_det = compute_all_metrics(y_true_det, y_pred_det)
     # Aliases para compatibilidad con main.py
@@ -317,10 +361,17 @@ def full_evaluation(
     metrics_det['_y_true'] = y_true_det
     metrics_det['_y_pred'] = y_pred_det
     metrics_det['_uncertainty'] = 1.0 - conf_det
+    # Guardar métricas de tiempo y memoria
+    metrics_det['inference_time_sec'] = end_time - start_time
+    metrics_det['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
+    # Guardar resultados
     results['deterministic'] = metrics_det
 
     print(f"AUC-ROC: {metrics_det['auc_roc']:.4f}")
     print(f"ECE: {metrics_det['ece']:.4f}")
+    print(f"Tiempo de inferencia: {metrics_det['inference_time_sec']:.2f} segundos")
+    if torch.cuda.is_available():
+        print(f"Uso de memoria: {metrics_det['inference_memory_delta_mb']:.2f} MB")
 
     # =========================================================================
     # 2. Evaluar MC Dropout
@@ -329,18 +380,37 @@ def full_evaluation(
     print("EVALUANDO MC DROPOUT")
     print("=" * 60)
 
-    y_true_mc, y_pred_mc, unc_mc = evaluate_mc_dropout(mc_model, test_loader)
+    # Medir tiempo de inferencia y uso de memoria para el modelo MC Dropout
+    start_time = time.perf_counter()
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
+
+    y_true_mc, y_pred_mc, epis_mc, ale_mc, total_unc_mc = evaluate_mc_dropout(mc_model, test_loader)
+
+    end_time = time.perf_counter()
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
 
     metrics_mc = compute_all_metrics(y_true_mc, y_pred_mc)
     metrics_mc['auc'] = metrics_mc['auc_roc']
     metrics_mc['brier'] = metrics_mc['brier_score']
     metrics_mc['_y_true'] = y_true_mc
     metrics_mc['_y_pred'] = y_pred_mc
-    metrics_mc['_uncertainty'] = unc_mc
+    metrics_mc['_epistemic_uncertainty'] = epis_mc
+    metrics_mc['_aleatoric_uncertainty'] = ale_mc
+    metrics_mc['_total_uncertainty'] = total_unc_mc
+    metrics_mc['inference_time_sec'] = end_time - start_time
+    metrics_mc['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
 
     y_pred_binary_mc = (y_pred_mc >= 0.5).astype(int)
-    unc_analysis_mc = analyze_uncertainty_by_correctness(unc_mc, y_true_mc, y_pred_binary_mc)
+    unc_analysis_mc = analyze_uncertainty_by_correctness(epis_mc, y_true_mc, y_pred_binary_mc)
     metrics_mc['_uncertainty_analysis'] = unc_analysis_mc
+
+    # Calcular métricas de triage (ejemplo de uso de métricas específicas para modelos bayesianos)
+    triage_mc = compute_triage_metrics(y_true_mc, y_pred_mc, epis_mc)
+    metrics_mc['referral_rate'] = triage_mc['referral_rate']
+    metrics_mc['coverage'] = triage_mc['coverage']
+    metrics_mc['accuracy_on_confident'] = triage_mc['accuracy_on_confident']
+
+    # Guardar resultados
     results['mc_dropout'] = metrics_mc
 
     print(f"AUC-ROC: {metrics_mc['auc_roc']:.4f}")
@@ -355,18 +425,36 @@ def full_evaluation(
     print("EVALUANDO LAPLACE APPROXIMATION")
     print("=" * 60)
 
-    y_true_la, y_pred_la, unc_la = evaluate_laplace(laplace_model, test_loader)
+    # Medir tiempo de inferencia y uso de memoria para el modelo Laplace
+    start_time = time.perf_counter()
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
+
+    y_true_la, y_pred_la, epis_la, ale_la, total_unc_la = evaluate_laplace(laplace_model, test_loader)
+
+    end_time = time.perf_counter()
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
 
     metrics_la = compute_all_metrics(y_true_la, y_pred_la)
     metrics_la['auc'] = metrics_la['auc_roc']
     metrics_la['brier'] = metrics_la['brier_score']
     metrics_la['_y_true'] = y_true_la
     metrics_la['_y_pred'] = y_pred_la
-    metrics_la['_uncertainty'] = unc_la
+    metrics_la['_epistemic_uncertainty'] = epis_la
+    metrics_la['_aleatoric_uncertainty'] = ale_la
+    metrics_la['_total_uncertainty'] = total_unc_la
+    metrics_la['inference_time_sec'] = end_time - start_time
+    metrics_la['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
 
     y_pred_binary_la = (y_pred_la >= 0.5).astype(int)
-    unc_analysis_la = analyze_uncertainty_by_correctness(unc_la, y_true_la, y_pred_binary_la)
+    unc_analysis_la = analyze_uncertainty_by_correctness(epis_la, y_true_la, y_pred_binary_la)
     metrics_la['_uncertainty_analysis'] = unc_analysis_la
+
+    # Métricas de triaje para Laplace
+    triage_la = compute_triage_metrics(y_true_la, y_pred_la, epis_la)
+    metrics_la['referral_rate'] = triage_la['referral_rate']
+    metrics_la['coverage'] = triage_la['coverage']
+    metrics_la['accuracy_on_confident'] = triage_la['accuracy_on_confident']
+
     results['laplace'] = metrics_la
 
     print(f"AUC-ROC: {metrics_la['auc_roc']:.4f}")
@@ -407,11 +495,11 @@ def full_evaluation(
     plt.close()
 
     # Histogramas de incertidumbre
-    plot_uncertainty_histogram(unc_mc, y_true_mc, y_pred_binary_mc, model_name='MC Dropout')
+    plot_uncertainty_histogram(epis_mc, y_true_mc, y_pred_binary_mc, model_name='MC Dropout', aleatoric=ale_mc)
     plt.savefig(FIGURES_DIR / 'uncertainty_hist_mc.png', dpi=150, bbox_inches='tight')
     plt.close()
 
-    plot_uncertainty_histogram(unc_la, y_true_la, y_pred_binary_la, model_name='Laplace')
+    plot_uncertainty_histogram(epis_la, y_true_la, y_pred_binary_la, model_name='Laplace', aleatoric=ale_la)
     plt.savefig(FIGURES_DIR / 'uncertainty_hist_laplace.png', dpi=150, bbox_inches='tight')
     plt.close()
 
@@ -467,10 +555,10 @@ def generate_uncertainty_report(
 
         model_results = results[model_key]
 
-        if '_uncertainty' not in model_results or '_y_true' not in model_results:
+        if '_epistemic_uncertainty' not in model_results or '_y_true' not in model_results:
             continue
 
-        uncertainties = model_results['_uncertainty']
+        uncertainties = model_results['_epistemic_uncertainty']
         y_true = model_results['_y_true']
         y_pred = (model_results['_y_pred'] >= 0.5).astype(int)
 

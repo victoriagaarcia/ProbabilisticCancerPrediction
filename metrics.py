@@ -326,60 +326,58 @@ def plot_roc_curve(
 
 
 def plot_uncertainty_histogram(
-    uncertainties: np.ndarray,
+    epistemic: np.ndarray,
     y_true: np.ndarray,
     y_pred: np.ndarray,
     model_name: str = 'Model',
+    aleatoric: Optional[np.ndarray] = None,
     save_path: Optional[Path] = None
 ) -> plt.Figure:
     """
     Visualiza la distribución de incertidumbre separada por aciertos/errores.
-    
-    Idealmente, el modelo debería tener:
-    - Baja incertidumbre en predicciones correctas
-    - Alta incertidumbre en predicciones incorrectas
-    
+
+    Muestra la incertidumbre epistémica (y opcionalmente la aleatórica)
+    para predicciones correctas vs incorrectas.
+
+    Un modelo bien calibrado debería tener:
+    - Distribución epistémica desplazada a la derecha en incorrectas
+    - Distribución aleatórica similar en ambos grupos (es ruido inherente)
+
     Args:
-        uncertainties: Incertidumbre epistémica por muestra
-        y_true: Etiquetas reales
-        y_pred: Predicciones binarias
-        model_name: Nombre del modelo
+        epistemic: Incertidumbre epistémica [N]
+        y_true: Etiquetas reales [N]
+        y_pred: Predicciones binarias [N]
+        model_name: Nombre del modelo para el título
+        aleatoric: Incertidumbre aleatórica [N] (opcional)
         save_path: Ruta para guardar
-        
-    Returns:
-        Figura
     """
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Separar por correctas/incorrectas
-    correct_mask = y_true == y_pred
-    
-    ax.hist(
-        uncertainties[correct_mask],
-        bins=50,
-        alpha=0.6,
-        label=f'Correct ({correct_mask.sum()})',
-        color='green',
-        density=True
-    )
-    ax.hist(
-        uncertainties[~correct_mask],
-        bins=50,
-        alpha=0.6,
-        label=f'Incorrect ({(~correct_mask).sum()})',
-        color='red',
-        density=True
-    )
-    
-    ax.set_xlabel('Epistemic Uncertainty', fontsize=12)
-    ax.set_ylabel('Density', fontsize=12)
-    ax.set_title(f'Uncertainty Distribution - {model_name}', fontsize=14)
-    ax.legend()
-    ax.grid(alpha=0.3)
-    
+    n_plots = 2 if aleatoric is not None else 1
+    fig, axes = plt.subplots(1, n_plots, figsize=(7 * n_plots, 5))
+    if n_plots == 1:
+        axes = [axes]
+
+    correct_mask = (y_true == y_pred)
+
+    def _plot_one(ax, values, title):
+        ax.hist(values[correct_mask],  bins=50, alpha=0.6, density=True,
+                color='green', label=f'Correct (n={correct_mask.sum()})')
+        ax.hist(values[~correct_mask], bins=50, alpha=0.6, density=True,
+                color='red',   label=f'Incorrect (n={(~correct_mask).sum()})')
+        ax.set_xlabel('Uncertainty', fontsize=12)
+        ax.set_ylabel('Density', fontsize=12)
+        ax.set_title(f'{title}\n{model_name}', fontsize=13)
+        ax.legend()
+        ax.grid(alpha=0.3)
+
+    _plot_one(axes[0], epistemic, 'Epistemic Uncertainty')
+    if aleatoric is not None:
+        _plot_one(axes[1], aleatoric, 'Aleatoric Uncertainty')
+
+    plt.tight_layout()
+
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches='tight')
-    
+
     return fig
 
 
