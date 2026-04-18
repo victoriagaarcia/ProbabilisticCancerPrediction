@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "probabilistic-cancer-prediction"
+version = "0.1.0"
+description = "Bayesian neural networks for histopathologic cancer detection"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "torch>=2.0.0",
+  "torchvision>=0.15.0",
+  "curvlinops-for-pytorch>=2.0.0,<3.0.0",
+  "laplace-torch>=0.1.0",
+  "numpy>=2.0.0",
+  "pandas>=2.0.0",
+  "scikit-learn>=1.3.0",
+  "Pillow>=10.0.0",
+  "albumentations>=1.3.0",
+  "matplotlib>=3.7.0",
+  "seaborn>=0.12.0",
+  "torchmetrics>=1.0.0",
+  "tqdm>=4.65.0",
+]
+
+[dependency-groups]
+demo = [
+  "streamlit>=1.28.0",
+  "gradio>=4.0.0",
+]
+dev = [
+  "jupyter>=1.0.0",
+  "ipywidgets>=8.0.0",
+  "black>=23.0.0",
+  "isort>=5.12.0",
+  "flake8>=6.0.0",
+]
+
+[tool.uv]
+package = false
+default-groups = ["demo", "dev"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
