@@ -182,6 +182,10 @@ def train_pipeline(args, train_loader, val_loader):
     print("  • Baseline for performance comparison")
     print("  • MAP estimate (ω*) for Laplace Approximation")
     print(f"\nTraining for {num_epochs} epochs...")
+
+    # Medir tiempo de entrenamiento para el modelo determinista y uso de memoria
+    start_time = time.perf_counter()
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0 # Memoria antes del entrenamiento
     
     det_model, det_history = train_deterministic_model(
         train_loader=train_loader,
@@ -189,6 +193,12 @@ def train_pipeline(args, train_loader, val_loader):
         num_epochs=num_epochs,
         save_path=MODELS_DIR / "deterministic_model.pt"
     )
+
+    end_time = time.perf_counter()
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
+    det_history['training_time_sec'] = end_time - start_time
+    det_history['training_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
+
     histories['deterministic'] = det_history
     
     print(f"\n✓ Deterministic model trained successfully")
@@ -206,12 +216,24 @@ def train_pipeline(args, train_loader, val_loader):
     
     laplace_model = LaplaceWrapper(det_model)
     
-    # Fit Laplace (compute Hessian)
+    # Medir tiempo de ajuste para el modelo Laplace y uso de memoria
     start_time = time.time()
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0 # Memoria antes del ajuste
+
+    # Fit Laplace (compute Hessian)
     laplace_model.fit(train_loader)
-    laplace_time = time.time() - start_time
+
+    end_time = time.time()
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
+
+    la_history = {
+        'fit_time_sec': end_time - start_time,
+        'fit_memory_delta_mb': (mem_after - mem_before) / 1e6  # Convertir a MB
+    }
+    histories['laplace'] = la_history
+
     
-    print(f"\n✓ Laplace approximation fitted in {laplace_time:.2f}s")
+    print(f"\n✓ Laplace approximation fitted in {la_history['fit_time_sec']:.2f}s")
     print(f"  Prior precision optimized via marginal likelihood")
     
     # Save Laplace model (with pickle since it contains non-serializable objects)
@@ -240,6 +262,10 @@ def train_pipeline(args, train_loader, val_loader):
     print("  • Each forward pass samples from approximate posterior")
     print(f"  • Dropout rate: {DROPOUT_RATE}")
     print(f"\nTraining for {num_epochs} epochs...")
+
+    # Medir tiempo de entrenamiento para el modelo MC Dropout y uso de memoria
+    start_time = time.perf_counter()
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
     
     mc_model, mc_history = train_mc_dropout_model(
         train_loader=train_loader,
@@ -247,6 +273,12 @@ def train_pipeline(args, train_loader, val_loader):
         num_epochs=num_epochs,
         save_path=MODELS_DIR / "mc_dropout_model.pt"
     )
+
+    end_time = time.perf_counter()
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
+    mc_history['training_time_sec'] = end_time - start_time
+    mc_history['training_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
+
     histories['mc_dropout'] = mc_history
     
     print(f"\n✓ MC Dropout model trained successfully")
