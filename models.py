@@ -25,6 +25,7 @@ from torchvision import models
 from typing import Tuple, Optional, Union, Any
 from pathlib import Path
 import numpy as np
+import pickle
 
 try:
     from laplace import Laplace
@@ -218,7 +219,7 @@ class MCDropoutCNN(nn.Module):
         Predicción con estimación de incertidumbre usando MC Dropout.
         
         Algoritmo:
-        1. Activar modo entrenamiento (dropout activo)
+        1. Activar modo entrenamiento solo para las capas de dropout
         2. Hacer T forward passes, cada uno con diferente máscara
         3. Promediar para obtener predicción media
         4. Calcular varianza como medida de incertidumbre
@@ -233,15 +234,21 @@ class MCDropoutCNN(nn.Module):
             n_samples: Número de forward passes
             
         Returns:
-            Tupla (mean_probs, epistemic_uncertainty, all_probs):
+            Tupla (mean_probs, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty, all_probs):
             - mean_probs: Probabilidades medias [B, NUM_CLASSES]
             - epistemic_uncertainty: Varianza de las predicciones [B]
+            - aleatoric_uncertainty: Incertidumbre aleatoria [B]
+            - total_uncertainty: Incertidumbre total [B]
             - all_probs: Todas las muestras [n_samples, B, NUM_CLASSES]
         """
         was_training = self.training
         
-        # IMPORTANTE: Activar modo train para que dropout esté activo
-        self.train()
+        # Ponemos el modelo en modo evaluación para que BatchNorm no actualice sus estadísticas,
+        # pero activamos solo las capas de Dropout para que sigan siendo estocásticas
+        self.eval()  # BatchNorm en eval
+        for module in self.modules():
+            if isinstance(module, nn.Dropout):
+                module.train()  # Dropout en train para muestreo
         
         all_probs = []
         
@@ -260,12 +267,23 @@ class MCDropoutCNN(nn.Module):
         
         # Media sobre muestras: [B, NUM_CLASSES]
         mean_probs = all_probs.mean(dim=0)
+
+        # Descomposición de incertidumbre (ley de la varianza total):
+        # p_t = probabilidad de clase positiva en la muestra t: [n_samples, B]
+        p_positive = all_probs[:, :, 1]  # [n_samples, B]
+
+        # Epistémica: debida a la incertidumbre en los pesos, se refleja en la varianza entre las muestras
+        # (alta cuando las máscaras de dropout generan predicciones muy diferentes)
+        epistemic_uncertainty = p_positive.var(dim=0)  # [B]
         
-        # Incertidumbre epistémica: varianza de la probabilidad de clase positiva
-        # Usamos la varianza de p(y=1|x) como métrica de incertidumbre
-        epistemic_uncertainty = all_probs[:, :, 1].var(dim=0)  # [B]
+        # Aleatoria: debida al ruido inherente en los datos, se refleja en la media de p(1-p) sobre las muestras
+        # (alta cuando la media está cerca de 0.5, indicando incertidumbre intrínseca)
+        aleatoric_uncertainty = (p_positive * (1 - p_positive)).mean(dim=0)  # [B]
+
+        # Incertidumbre total: suma de ambas componentes
+        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty  # [B]
         
-        return mean_probs, epistemic_uncertainty, all_probs
+        return mean_probs, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty, all_probs
 
 
 class LaplaceWrapper:
@@ -374,9 +392,12 @@ class LaplaceWrapper:
             n_samples: Número de muestras de pesos
             
         Returns:
-            Tupla (mean_probs, epistemic_uncertainty):
+            Tupla (mean_probs, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty, all_probs):
             - mean_probs: Probabilidades medias [B, NUM_CLASSES]
             - epistemic_uncertainty: Incertidumbre epistémica [B]
+            - aleatoric_uncertainty: Incertidumbre aleatoria [B]
+            - total_uncertainty: Incertidumbre total [B]
+            - all_probs: Todas las muestras [n_samples, B, NUM_CLASSES]
         """
         if not self.fitted:
             raise RuntimeError("Debe llamar fit() antes de predict_with_uncertainty()")
@@ -385,16 +406,34 @@ class LaplaceWrapper:
         # y hace un forward pass por cada muestra.
         # Retorna shape: [n_samples, B, num_classes]
         with torch.no_grad():
-            all_probs = self.la.predictive_samples(
+            all_logits = self.la.predictive_samples(
                 x, pred_type='nn', n_samples=n_samples
             )
+        
+        # Convertir logits a probabilidades
+        all_probs = torch.softmax(all_logits, dim=-1)  # [n_samples, B, num_classes]
 
         # all_probs: [n_samples, B, num_classes]
         mean_probs = all_probs.mean(dim=0)                  # [B, num_classes]
-        epistemic_uncertainty = all_probs[:, :, 1].var(dim=0)  # [B]
 
-        return mean_probs, epistemic_uncertainty
-    
+        # En el modelo de Laplace, también descomponemos la incertidumbre:
+        # - Epistémica: varianza entre las muestras de predicción
+        # - Aleatoria: media de p(1-p) sobre las muestras
+
+        # Probabilidad de clase positiva
+        p_positive = all_probs[:, :, 1]  # [n_samples, B]
+
+        # Incertidumbre epistémica (igual que en MC Dropout): varianza entre las muestras
+        epistemic_uncertainty = p_positive.var(dim=0)  # [B]
+
+        # Incertidumbre aleatoria: media de p(1-p) sobre las muestras
+        aleatoric_uncertainty = (p_positive * (1 - p_positive)).mean(dim=0)  # [B]
+
+        # Incertidumbre total: suma de las dos componentes
+        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty  # [B]
+
+        return mean_probs, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty, all_probs
+
     def __call__(self, x: torch.Tensor) -> torch.Tensor:
         """Predicción directa usando la media del posterior."""
         if not self.fitted:
@@ -402,6 +441,21 @@ class LaplaceWrapper:
         
         with torch.no_grad():
             return self.la(x, pred_type='glm', link_approx='probit')
+    
+    def load(self, path: Union[str, Path]) -> 'LaplaceWrapper':
+        """
+    Carga un objeto Laplace previamente serializado con pickle.
+    
+    Args:
+        path: Ruta al archivo .pkl generado durante el entrenamiento
+        
+    Returns:
+        self (para encadenar llamadas)
+    """
+    with open(path, "rb") as f:
+        self.la = pickle.load(f)
+    self.fitted = True
+    return self
 
 
 def create_deterministic_model(pretrained: bool = True) -> DeterministicCNN:

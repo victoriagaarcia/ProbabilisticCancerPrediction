@@ -35,6 +35,7 @@ from pathlib import Path
 import torch
 import numpy as np
 import pandas as pd
+import pickle
 
 # Import project modules
 from config import (
@@ -213,11 +214,15 @@ def train_pipeline(args, train_loader, val_loader):
     print(f"\n✓ Laplace approximation fitted in {laplace_time:.2f}s")
     print(f"  Prior precision optimized via marginal likelihood")
     
-    # Save Laplace model
-    torch.save({
-        'base_model_state': det_model.state_dict(),
-        'laplace_fitted': laplace_model.fitted,
-    }, MODELS_DIR / "laplace_model.pt")
+    # Save Laplace model (with pickle since it contains non-serializable objects)
+    # Guardamos el objeto Laplace fitted completo (contiene la Hessiana/covarianza)
+    with open(MODELS_DIR / "laplace_fitted.pkl", "wb") as f:
+        pickle.dump(laplace_model.la, f)
+    
+    # torch.save({
+    #     'base_model_state': det_model.state_dict(),
+    #     'laplace_fitted': laplace_model.fitted,
+    # }, MODELS_DIR / "laplace_model.pt")
     # torch.save({
     #     'base_model_state': det_model.state_dict(),
     #     'laplace_obj': laplace_model.la, # esto no es serializable
@@ -435,8 +440,19 @@ Examples:
 
         # Rebuild and fit Laplace model
         # laplace_model_path = MODELS_DIR / "laplace_model.pt"
+        # laplace_model = LaplaceWrapper(det_model)
+        # laplace_model.fit(train_loader)
+
+        # Load Laplace fitted object (.pkl)
+        laplace_pkl_path = MODELS_DIR / "laplace_fitted.pkl"
         laplace_model = LaplaceWrapper(det_model)
-        laplace_model.fit(train_loader)
+        if laplace_pkl_path.exists():
+            with open(laplace_pkl_path, "rb") as f:
+                laplace_model.la = pickle.load(f)
+                print("✓ Laplace model loaded successfully from pickle")
+        else:
+            print("⚠️  Laplace fitted model not found. Fitting now...")
+            laplace_model.fit(train_loader)
         
         print("✓ Models loaded successfully")
         print(f"Models loaded at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
