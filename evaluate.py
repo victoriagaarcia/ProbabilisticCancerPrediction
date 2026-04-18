@@ -307,14 +307,14 @@ def full_evaluation(
     print("EVALUANDO MODELO DETERMINISTA")
     print("=" * 60)
 
-    y_true, y_pred_det, conf_det = evaluate_deterministic(det_model, test_loader)
+    y_true_det, y_pred_det, conf_det = evaluate_deterministic(det_model, test_loader)
 
-    metrics_det = compute_all_metrics(y_true, y_pred_det)
+    metrics_det = compute_all_metrics(y_true_det, y_pred_det)
     # Aliases para compatibilidad con main.py
     metrics_det['auc'] = metrics_det['auc_roc']
     metrics_det['brier'] = metrics_det['brier_score']
     # Datos por muestra con prefijo _ para que main.py los excluya del JSON
-    metrics_det['_y_true'] = y_true
+    metrics_det['_y_true'] = y_true_det
     metrics_det['_y_pred'] = y_pred_det
     metrics_det['_uncertainty'] = 1.0 - conf_det
     results['deterministic'] = metrics_det
@@ -329,17 +329,17 @@ def full_evaluation(
     print("EVALUANDO MC DROPOUT")
     print("=" * 60)
 
-    y_true, y_pred_mc, unc_mc = evaluate_mc_dropout(mc_model, test_loader)
+    y_true_mc, y_pred_mc, unc_mc = evaluate_mc_dropout(mc_model, test_loader)
 
-    metrics_mc = compute_all_metrics(y_true, y_pred_mc)
+    metrics_mc = compute_all_metrics(y_true_mc, y_pred_mc)
     metrics_mc['auc'] = metrics_mc['auc_roc']
     metrics_mc['brier'] = metrics_mc['brier_score']
-    metrics_mc['_y_true'] = y_true
+    metrics_mc['_y_true'] = y_true_mc
     metrics_mc['_y_pred'] = y_pred_mc
     metrics_mc['_uncertainty'] = unc_mc
 
     y_pred_binary_mc = (y_pred_mc >= 0.5).astype(int)
-    unc_analysis_mc = analyze_uncertainty_by_correctness(unc_mc, y_true, y_pred_binary_mc)
+    unc_analysis_mc = analyze_uncertainty_by_correctness(unc_mc, y_true_mc, y_pred_binary_mc)
     metrics_mc['_uncertainty_analysis'] = unc_analysis_mc
     results['mc_dropout'] = metrics_mc
 
@@ -355,17 +355,17 @@ def full_evaluation(
     print("EVALUANDO LAPLACE APPROXIMATION")
     print("=" * 60)
 
-    y_true, y_pred_la, unc_la = evaluate_laplace(laplace_model, test_loader)
+    y_true_la, y_pred_la, unc_la = evaluate_laplace(laplace_model, test_loader)
 
-    metrics_la = compute_all_metrics(y_true, y_pred_la)
+    metrics_la = compute_all_metrics(y_true_la, y_pred_la)
     metrics_la['auc'] = metrics_la['auc_roc']
     metrics_la['brier'] = metrics_la['brier_score']
-    metrics_la['_y_true'] = y_true
+    metrics_la['_y_true'] = y_true_la
     metrics_la['_y_pred'] = y_pred_la
     metrics_la['_uncertainty'] = unc_la
 
     y_pred_binary_la = (y_pred_la >= 0.5).astype(int)
-    unc_analysis_la = analyze_uncertainty_by_correctness(unc_la, y_true, y_pred_binary_la)
+    unc_analysis_la = analyze_uncertainty_by_correctness(unc_la, y_true_la, y_pred_binary_la)
     metrics_la['_uncertainty_analysis'] = unc_analysis_la
     results['laplace'] = metrics_la
 
@@ -390,28 +390,28 @@ def full_evaluation(
 
     # Reliability diagrams
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    plot_reliability_diagram(y_true, y_pred_det, model_name='Deterministic', ax=axes[0])
-    plot_reliability_diagram(y_true, y_pred_mc, model_name='MC Dropout', ax=axes[1])
-    plot_reliability_diagram(y_true, y_pred_la, model_name='Laplace', ax=axes[2])
+    plot_reliability_diagram(y_true_det, y_pred_det, model_name='Deterministic', ax=axes[0])
+    plot_reliability_diagram(y_true_mc, y_pred_mc, model_name='MC Dropout', ax=axes[1])
+    plot_reliability_diagram(y_true_la, y_pred_la, model_name='Laplace', ax=axes[2])
     plt.tight_layout()
     fig.savefig(FIGURES_DIR / 'reliability_diagrams.png', dpi=150, bbox_inches='tight')
     plt.close()
 
     # ROC curves
     fig, ax = plt.subplots(figsize=(8, 6))
-    plot_roc_curve(y_true, y_pred_det, 'Deterministic', ax=ax)
-    plot_roc_curve(y_true, y_pred_mc, 'MC Dropout', ax=ax)
-    plot_roc_curve(y_true, y_pred_la, 'Laplace', ax=ax)
+    plot_roc_curve(y_true_det, y_pred_det, 'Deterministic', ax=ax)
+    plot_roc_curve(y_true_mc, y_pred_mc, 'MC Dropout', ax=ax)
+    plot_roc_curve(y_true_la, y_pred_la, 'Laplace', ax=ax)
     ax.legend()
     fig.savefig(FIGURES_DIR / 'roc_curves.png', dpi=150, bbox_inches='tight')
     plt.close()
 
     # Histogramas de incertidumbre
-    plot_uncertainty_histogram(unc_mc, y_true, y_pred_binary_mc, model_name='MC Dropout')
+    plot_uncertainty_histogram(unc_mc, y_true_mc, y_pred_binary_mc, model_name='MC Dropout')
     plt.savefig(FIGURES_DIR / 'uncertainty_hist_mc.png', dpi=150, bbox_inches='tight')
     plt.close()
 
-    plot_uncertainty_histogram(unc_la, y_true, y_pred_binary_la, model_name='Laplace')
+    plot_uncertainty_histogram(unc_la, y_true_la, y_pred_binary_la, model_name='Laplace')
     plt.savefig(FIGURES_DIR / 'uncertainty_hist_laplace.png', dpi=150, bbox_inches='tight')
     plt.close()
 

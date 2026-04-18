@@ -80,55 +80,64 @@ def compute_ece(
     n_bins: int = ECE_NUM_BINS
 ) -> Tuple[float, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Calcula el Expected Calibration Error (ECE).
-    
-    El ECE mide la diferencia entre la confianza del modelo y la accuracy real:
-    
-        ECE = Σ_b (|B_b| / N) * |acc(B_b) - conf(B_b)|
-    
-    donde:
-        - B_b es el conjunto de predicciones en el bin b
-        - acc(B_b) es la accuracy real en ese bin
-        - conf(B_b) es la confianza media en ese bin
-    
-    Interpretación:
-        - ECE = 0: Calibración perfecta
-        - ECE alto: El modelo está sobre/sub-confiado
-    
+    Compute Expected Calibration Error (ECE) using confidence vs empirical accuracy.
+
+    This version implements the standard classification-calibration view:
+    - confidence(B_m): mean confidence of the predicted class in bin m
+    - accuracy(B_m): empirical accuracy in bin m
+
+    For binary classification, if p = P(y=1|x):
+    - predicted class = 1 if p >= 0.5 else 0
+    - confidence = p if predicted class is 1, else 1 - p
+
     Args:
-        y_true: Etiquetas reales [N]
-        y_pred_proba: Probabilidades predichas [N]
-        n_bins: Número de bins
-        
+        y_true: True binary labels of shape [N]
+        y_pred_proba: Predicted probability for the positive class of shape [N]
+        n_bins: Number of bins
+
     Returns:
-        Tupla (ECE, accuracies_por_bin, confidences_por_bin, proporciones)
+        Tuple:
+            - ece: scalar ECE
+            - bin_accuracies: empirical accuracy per bin
+            - bin_confidences: mean confidence per bin
+            - weights: fraction of samples per bin
     """
-    # Crear bins de confianza [0, 1/n_bins, 2/n_bins, ..., 1]
-    bin_boundaries = np.linspace(0, 1, n_bins + 1)
-    
-    # Asignar cada predicción a un bin
-    bin_indices = np.digitize(y_pred_proba, bin_boundaries[1:-1])
-    
-    bin_accuracies = np.zeros(n_bins)
-    bin_confidences = np.zeros(n_bins)
-    bin_counts = np.zeros(n_bins)
-    
+    y_true = np.asarray(y_true).astype(int)
+    y_pred_proba = np.asarray(y_pred_proba).astype(float)
+
+    # Safety clip in case probabilities are numerically unstable
+    y_pred_proba = np.clip(y_pred_proba, 0.0, 1.0)
+
+    # Predicted class
+    y_pred = (y_pred_proba >= 0.5).astype(int)
+
+    # Confidence of the predicted class
+    confidences = np.where(y_pred == 1, y_pred_proba, 1.0 - y_pred_proba)
+
+    # Whether the prediction is correct
+    correctness = (y_pred == y_true).astype(float)
+
+    # Uniform bins over confidence
+    bin_boundaries = np.linspace(0.0, 1.0, n_bins + 1)
+    bin_indices = np.digitize(confidences, bin_boundaries[1:-1])
+
+    bin_accuracies = np.zeros(n_bins, dtype=float)
+    bin_confidences = np.zeros(n_bins, dtype=float)
+    bin_counts = np.zeros(n_bins, dtype=float)
+
     for b in range(n_bins):
-        # Predicciones en este bin
         mask = bin_indices == b
         bin_counts[b] = mask.sum()
-        
+
         if bin_counts[b] > 0:
-            # Accuracy real: proporción de aciertos
-            bin_accuracies[b] = y_true[mask].mean()
-            # Confianza media: probabilidad predicha media
-            bin_confidences[b] = y_pred_proba[mask].mean()
-    
-    # Calcular ECE: media ponderada de |accuracy - confidence|
-    weights = bin_counts / bin_counts.sum()
+            bin_accuracies[b] = correctness[mask].mean()
+            bin_confidences[b] = confidences[mask].mean()
+
+    weights = bin_counts / max(bin_counts.sum(), 1.0)
     ece = np.sum(weights * np.abs(bin_accuracies - bin_confidences))
-    
+
     return ece, bin_accuracies, bin_confidences, weights
+
 
 
 def compute_brier_score(
@@ -227,71 +236,49 @@ def plot_reliability_diagram(
     save_path: Optional[Path] = None
 ) -> plt.Figure:
     """
-    Genera el Reliability Diagram (diagrama de calibración).
-    
-    El reliability diagram muestra:
-    - Eje X: Confianza del modelo (probabilidad predicha)
-    - Eje Y: Accuracy real (fracción de positivos reales)
-    - Línea diagonal: Calibración perfecta
-    
-    Un modelo bien calibrado tiene barras cercanas a la diagonal.
-    
-    Args:
-        y_true: Etiquetas reales
-        y_pred_proba: Probabilidades predichas
-        n_bins: Número de bins
-        model_name: Nombre del modelo para el título
-        ax: Axes existente (opcional)
-        save_path: Ruta para guardar la figura
-        
-    Returns:
-        Figura de matplotlib
+    Plot a reliability diagram for confidence vs empirical accuracy.
+
+    X-axis: mean confidence in each bin
+    Y-axis: empirical accuracy in each bin
+
+    A perfectly calibrated model lies on the diagonal.
     """
     ece, bin_accuracies, bin_confidences, weights = compute_ece(
         y_true, y_pred_proba, n_bins
     )
-    
+
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 6))
     else:
         fig = ax.figure
-    
-    # Centros de los bins
-    bin_centers = np.linspace(1/(2*n_bins), 1 - 1/(2*n_bins), n_bins)
+
+    # Use actual mean confidence as bar positions when bins are non-empty
+    non_empty = weights > 0
     bin_width = 1 / n_bins
-    
-    # Barras de accuracy
+
     ax.bar(
-        bin_centers,
-        bin_accuracies,
+        bin_confidences[non_empty],
+        bin_accuracies[non_empty],
         width=bin_width * 0.8,
         alpha=0.7,
-        color='steelblue',
         edgecolor='black',
-        label='Accuracy'
+        label='Empirical accuracy'
     )
-    
-    # Línea de calibración perfecta
+
     ax.plot([0, 1], [0, 1], 'k--', lw=2, label='Perfect calibration')
-    
-    # Configuración
-    ax.set_xlabel('Mean Predicted Probability', fontsize=12)
-    ax.set_ylabel('Fraction of Positives', fontsize=12)
+
+    ax.set_xlabel('Confidence', fontsize=12)
+    ax.set_ylabel('Accuracy', fontsize=12)
     ax.set_title(f'Reliability Diagram - {model_name}\nECE = {ece:.4f}', fontsize=14)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.legend(loc='upper left')
     ax.grid(alpha=0.3)
-    
-    # Agregar histograma de predicciones (subplot inferior)
-    # ax2 = ax.twinx()
-    # ax2.bar(bin_centers, weights, width=bin_width*0.8, alpha=0.3, color='gray')
-    # ax2.set_ylabel('Fraction of Samples', color='gray')
-    
+
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches='tight')
         print(f"Reliability diagram guardado en {save_path}")
-    
+
     return fig
 
 
@@ -472,3 +459,106 @@ def print_metrics_table(results: Dict[str, Dict[str, float]]):
     print("=" * 80)
     print("\nNOTA: Para ECE, Brier Score y NLL, menor es mejor.")
     print("      Para AUC-ROC, F1-Score y Accuracy, mayor es mejor.")
+
+
+def triage_decision(
+    mean_prob: float,
+    epistemic_uncertainty: float,
+    uncertainty_threshold: float = None,
+    confidence_threshold: float = None
+) -> dict:
+    """
+    Traduce incertidumbre en una decisión clínica accionable.
+
+    Lógica:
+    - Si la incertidumbre epistémica supera el umbral → derivar a patólogo
+    - Si no, clasificar según la probabilidad media
+
+    Esta función implementa el requisito de 'valor de negocio':
+    la incertidumbre deja de ser un número abstracto y se convierte
+    en una acción concreta del sistema.
+
+    Args:
+        mean_prob: Probabilidad media de cáncer p(y=1|x)
+        epistemic_uncertainty: Varianza entre muestras del posterior
+        uncertainty_threshold: Umbral de derivación (default: config)
+        confidence_threshold: Umbral de clasificación (default: config)
+
+    Returns:
+        dict con keys: decision, confidence, action, color
+    """
+    from config import UNCERTAINTY_THRESHOLD, CONFIDENCE_THRESHOLD
+
+    if uncertainty_threshold is None:
+        uncertainty_threshold = UNCERTAINTY_THRESHOLD
+    if confidence_threshold is None:
+        confidence_threshold = CONFIDENCE_THRESHOLD
+
+    if epistemic_uncertainty > uncertainty_threshold:
+        return {
+            "decision": "UNCERTAIN",
+            "confidence": mean_prob,
+            "action": "⚠️  High epistemic uncertainty — refer to human pathologist review",
+            "color": "orange"
+        }
+    elif mean_prob >= confidence_threshold:
+        return {
+            "decision": "CANCER",
+            "confidence": mean_prob,
+            "action": "🔴  Malignant tissue detected — flag for clinical follow-up",
+            "color": "red"
+        }
+    else:
+        return {
+            "decision": "BENIGN",
+            "confidence": 1 - mean_prob,
+            "action": "🟢  No malignancy detected — routine monitoring",
+            "color": "green"
+        }
+
+
+def compute_triage_metrics(
+    y_true: np.ndarray,
+    y_pred_proba: np.ndarray,
+    epistemic: np.ndarray,
+    uncertainty_threshold: float = None
+) -> dict:
+    """
+    Calcula métricas de negocio basadas en el sistema de triaje.
+
+    Métricas:
+    - referral_rate: fracción de casos derivados a revisión humana
+    - accuracy_on_confident: accuracy solo en casos NO derivados
+    - coverage: fracción de casos resueltos automáticamente
+
+    Args:
+        y_true: Etiquetas reales [N]
+        y_pred_proba: Probabilidades medias [N]
+        epistemic: Incertidumbre epistémica [N]
+        uncertainty_threshold: Umbral de derivación
+
+    Returns:
+        dict con métricas de negocio
+    """
+    from config import UNCERTAINTY_THRESHOLD, CONFIDENCE_THRESHOLD
+
+    if uncertainty_threshold is None:
+        uncertainty_threshold = UNCERTAINTY_THRESHOLD
+
+    uncertain_mask = epistemic > uncertainty_threshold
+    confident_mask = ~uncertain_mask
+
+    referral_rate = uncertain_mask.mean()
+    coverage = confident_mask.mean()
+
+    if confident_mask.sum() > 0:
+        y_pred_confident = (y_pred_proba[confident_mask] >= CONFIDENCE_THRESHOLD).astype(int)
+        acc_confident = accuracy_score(y_true[confident_mask], y_pred_confident)
+    else:
+        acc_confident = float('nan')
+
+    return {
+        "referral_rate": float(referral_rate),
+        "coverage": float(coverage),
+        "accuracy_on_confident": float(acc_confident),
+    }
