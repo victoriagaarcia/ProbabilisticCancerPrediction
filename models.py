@@ -442,21 +442,6 @@ class LaplaceWrapper:
         
         with torch.no_grad():
             return self.la(x, pred_type='glm', link_approx='probit')
-    
-    def load(self, path: Union[str, Path]) -> 'LaplaceWrapper':
-        """
-    Carga un objeto Laplace previamente serializado con pickle.
-    
-    Args:
-        path: Ruta al archivo .pkl generado durante el entrenamiento
-        
-    Returns:
-        self (para encadenar llamadas)
-    """
-    with open(path, "rb") as f:
-        self.la = pickle.load(f)
-    self.fitted = True
-    return self
 
 
 def create_deterministic_model(pretrained: bool = True) -> DeterministicCNN:

@@ -342,6 +342,21 @@ def evaluation_pipeline(det_model, mc_model, laplace_model,
     print(f"  Laplace:        {results['laplace']['brier']:.4f}")
     print(f"  MC Dropout:     {results['mc_dropout']['brier']:.4f}")
     
+    # New metrics
+    print("\nUncertainty Decomposition & Triage (Laplace / MC Dropout):")
+    for model_name in ['laplace', 'mc_dropout']:
+        r = results[model_name]
+        print(f"\n  {model_name}:")
+        print(f"    Referral rate (uncertain → human): {r.get('referral_rate', 0):.1%}")
+        print(f"    Coverage (auto-resolved):          {r.get('coverage', 0):.1%}")
+        print(f"    Accuracy on confident predictions: {r.get('accuracy_on_confident', 0):.4f}")
+
+    print("\nInference Profiling:")
+    for model_name in ['deterministic', 'laplace', 'mc_dropout']:
+        r = results[model_name]
+        print(f"  {model_name}: {r.get('inference_time_ms', 0):.1f} ms | "
+            f"{r.get('memory_delta_mb', 0):.1f} MB")
+
     # =========================================================================
     # Generate Uncertainty Report
     # =========================================================================

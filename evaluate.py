@@ -309,7 +309,6 @@ def full_evaluation(
     mc_model: MCDropoutCNN,
     laplace_model: LaplaceWrapper,
     test_loader: DataLoader,
-    train_loader: Optional[DataLoader] = None,
     save_dir: Optional[Path] = None
 ) -> Dict[str, Dict]:
     """
@@ -475,39 +474,39 @@ def full_evaluation(
     # =========================================================================
     # 5. Generar visualizaciones
     # =========================================================================
-    print("\nGenerando visualizaciones...")
+    # print("\nGenerando visualizaciones...")
 
-    # Reliability diagrams
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    plot_reliability_diagram(y_true_det, y_pred_det, model_name='Deterministic', ax=axes[0])
-    plot_reliability_diagram(y_true_mc, y_pred_mc, model_name='MC Dropout', ax=axes[1])
-    plot_reliability_diagram(y_true_la, y_pred_la, model_name='Laplace', ax=axes[2])
-    plt.tight_layout()
-    fig.savefig(FIGURES_DIR / 'reliability_diagrams.png', dpi=150, bbox_inches='tight')
-    plt.close()
+    # # Reliability diagrams
+    # fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    # plot_reliability_diagram(y_true_det, y_pred_det, model_name='Deterministic', ax=axes[0])
+    # plot_reliability_diagram(y_true_mc, y_pred_mc, model_name='MC Dropout', ax=axes[1])
+    # plot_reliability_diagram(y_true_la, y_pred_la, model_name='Laplace', ax=axes[2])
+    # plt.tight_layout()
+    # fig.savefig(save_dir / 'reliability_diagrams.png', dpi=150, bbox_inches='tight')
+    # plt.close()
 
-    # ROC curves
-    fig, ax = plt.subplots(figsize=(8, 6))
-    plot_roc_curve(y_true_det, y_pred_det, 'Deterministic', ax=ax)
-    plot_roc_curve(y_true_mc, y_pred_mc, 'MC Dropout', ax=ax)
-    plot_roc_curve(y_true_la, y_pred_la, 'Laplace', ax=ax)
-    ax.legend()
-    fig.savefig(FIGURES_DIR / 'roc_curves.png', dpi=150, bbox_inches='tight')
-    plt.close()
+    # # ROC curves
+    # fig, ax = plt.subplots(figsize=(8, 6))
+    # plot_roc_curve(y_true_det, y_pred_det, 'Deterministic', ax=ax)
+    # plot_roc_curve(y_true_mc, y_pred_mc, 'MC Dropout', ax=ax)
+    # plot_roc_curve(y_true_la, y_pred_la, 'Laplace', ax=ax)
+    # ax.legend()
+    # fig.savefig(save_dir / 'roc_curves.png', dpi=150, bbox_inches='tight')
+    # plt.close()
 
-    # Histogramas de incertidumbre
-    plot_uncertainty_histogram(epis_mc, y_true_mc, y_pred_binary_mc, model_name='MC Dropout', aleatoric=ale_mc)
-    plt.savefig(FIGURES_DIR / 'uncertainty_hist_mc.png', dpi=150, bbox_inches='tight')
-    plt.close()
+    # # Histogramas de incertidumbre
+    # plot_uncertainty_histogram(epis_mc, y_true_mc, y_pred_binary_mc, model_name='MC Dropout', aleatoric=ale_mc)
+    # plt.savefig(save_dir / 'uncertainty_hist_mc.png', dpi=150, bbox_inches='tight')
+    # plt.close()
 
-    plot_uncertainty_histogram(epis_la, y_true_la, y_pred_binary_la, model_name='Laplace', aleatoric=ale_la)
-    plt.savefig(FIGURES_DIR / 'uncertainty_hist_laplace.png', dpi=150, bbox_inches='tight')
-    plt.close()
+    # plot_uncertainty_histogram(epis_la, y_true_la, y_pred_binary_la, model_name='Laplace', aleatoric=ale_la)
+    # plt.savefig(save_dir / 'uncertainty_hist_laplace.png', dpi=150, bbox_inches='tight')
+    # plt.close()
 
     # Comparación de métricas
     compare_models_metrics(
         {'Deterministic': metrics_det, 'MC Dropout': metrics_mc, 'Laplace': metrics_la},
-        save_path=FIGURES_DIR / 'metrics_comparison.png'
+        save_path=save_dir / 'metrics_comparison.png'
     )
     plt.close()
 
@@ -524,7 +523,7 @@ def full_evaluation(
         json.dump(results_json, f, indent=2)
 
     print(f"Resultados guardados en {save_dir}")
-    print(f"Figuras guardadas en {FIGURES_DIR}")
+    print(f"Figuras guardadas en {save_dir}")
 
     return results
 
