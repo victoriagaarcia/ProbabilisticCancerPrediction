@@ -515,5 +515,45 @@ def generate_all_figures(
         plt.close()
         compare_models_metrics(metrics_only, save_path=save_dir / 'metrics_comparison.png')
         plt.close()
+    
+    # 7. Figura con predicciones de muestras (sample predictions)
+    if test_loader is not None:
+        images, labels = next(iter(test_loader))
+        n = len(images)
+
+        for key, name in [('mc_dropout', 'MC Dropout'), ('laplace', 'Laplace')]:
+            if key in results and '_y_pred' in results[key]:
+                probs = torch.tensor(results[key]['_y_pred'][:n])
+                uncertainties = torch.tensor(results[key]['_uncertainty'][:n])
+                plot_sample_predictions(
+                    images, labels, probs, uncertainties,
+                    n_samples=16, model_name=name,
+                    save_path=save_dir / f'sample_predictions_{key}.png'
+                )
+                plt.close()
+    
+    # 8. Figura con ejemplos de alta incertidumbre (top 12 en primeras 500 imágenes)
+    if test_loader is not None:
+        all_images = []
+        all_labels = []
+        for images, labels in test_loader: # Recolectar imágenes y etiquetas para las primeras 500 muestras
+            all_images.append(images)
+            all_labels.append(labels)
+            if sum(len(x) for x in all_images) >= 500:
+                break
+        
+        all_images = torch.cat(all_images)[:500]
+        all_labels = torch.cat(all_labels)[:500]
+
+        for key, name in [('mc_dropout', 'MC Dropout'), ('laplace', 'Laplace')]:
+            if key in results and '_uncertainty' in results[key]:
+                probs = np.array(results[key]['_y_pred'][:500])
+                uncertainties = np.array(results[key]['_uncertainty'][:500])
+                plot_high_uncertainty_samples(
+                    all_images, all_labels, probs, uncertainties,
+                    top_k=12, model_name=name,
+                    save_path=save_dir / f'high_uncertainty_samples_{key}.png'
+                )
+                plt.close()
 
     print(f"\nTodas las figuras guardadas en {save_dir}")
