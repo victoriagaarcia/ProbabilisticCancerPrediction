@@ -1,3 +1,4 @@
+# Latest version
 """
 config.py - Configuración centralizada del proyecto
 ====================================================
@@ -103,6 +104,14 @@ ECE_NUM_BINS = 15
 # SEMILLA PARA REPRODUCIBILIDAD
 # =============================================================================
 RANDOM_SEED = 42
+
+# =============================================================================
+# UMBRALES PARA EL TRIAJE CLÍNICO
+# =============================================================================
+# Umbral de incertidumbre epistémica a partir del cual la predicción se deriva
+# a revisión humana (patólogo).
+UNCERTAINTY_THRESHOLD = 0.05
+CONFIDENCE_THRESHOLD = 0.5
 
 def set_seed(seed: int = RANDOM_SEED):
     """

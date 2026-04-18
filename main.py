@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Latest version
 """
 =============================================================================
 BAYESIAN NEURAL NETWORKS FOR HISTOPATHOLOGIC CANCER DETECTION
