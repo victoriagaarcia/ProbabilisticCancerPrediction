@@ -317,7 +317,6 @@ def evaluation_pipeline(det_model, mc_model, laplace_model,
         mc_model=mc_model,
         laplace_model=laplace_model,
         test_loader=test_loader,
-        train_loader=train_loader,
         save_dir=RESULTS_DIR
     )
     
@@ -354,8 +353,8 @@ def evaluation_pipeline(det_model, mc_model, laplace_model,
     print("\nInference Profiling:")
     for model_name in ['deterministic', 'laplace', 'mc_dropout']:
         r = results[model_name]
-        print(f"  {model_name}: {r.get('inference_time_ms', 0):.1f} ms | "
-            f"{r.get('memory_delta_mb', 0):.1f} MB")
+        print(f"  {model_name}: {r.get('inference_time_sec', 0) * 1000:.1f} ms | "
+              f"{r.get('inference_memory_delta_mb', 0):.1f} MB")
 
     # =========================================================================
     # Generate Uncertainty Report
@@ -492,7 +491,7 @@ Examples:
         # laplace_model.fit(train_loader)
 
         # Load Laplace fitted object (.pkl)
-        laplace_pkl_path = MODELS_DIR / "laplace_fitted.pkl"
+        laplace_pkl_path = MODELS_DIR / "laplace_model.pkl"
         laplace_model = LaplaceWrapper(det_model)
         if laplace_pkl_path.exists():
             with open(laplace_pkl_path, "rb") as f:

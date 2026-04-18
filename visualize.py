@@ -477,22 +477,23 @@ def generate_all_figures(
 
     # 4. Histogramas de incertidumbre
     for key, name in [('mc_dropout', 'MC Dropout'), ('laplace', 'Laplace')]:
-        if key in results and '_uncertainty' in results[key]:
+        if key in results and '_epistemic_uncertainty' in results[key]:
             y_pred_binary = (results[key]['_y_pred'] >= 0.5).astype(int)
             plot_uncertainty_histogram(
-                results[key]['_uncertainty'],
+                results[key]['_epistemic_uncertainty'],
                 results[key]['_y_true'],
                 y_pred_binary,
                 model_name=name,
+                aleatoric=results[key].get('_aleatoric_uncertainty'),
                 save_path=save_dir / f'uncertainty_hist_{key}.png'
             )
             plt.close()
 
     # 5. Incertidumbre vs error
     for key, name in [('mc_dropout', 'MC Dropout'), ('laplace', 'Laplace')]:
-        if key in results and '_uncertainty' in results[key]:
+        if key in results and '_epistemic_uncertainty' in results[key]:
             plot_uncertainty_vs_error(
-                results[key]['_uncertainty'],
+                results[key]['_epistemic_uncertainty'],
                 results[key]['_y_true'],
                 results[key]['_y_pred'],
                 model_name=name,
@@ -524,7 +525,7 @@ def generate_all_figures(
         for key, name in [('mc_dropout', 'MC Dropout'), ('laplace', 'Laplace')]:
             if key in results and '_y_pred' in results[key]:
                 probs = torch.tensor(results[key]['_y_pred'][:n])
-                uncertainties = torch.tensor(results[key]['_uncertainty'][:n])
+                uncertainties = torch.tensor(results[key]['_epistemic_uncertainty'][:n])
                 plot_sample_predictions(
                     images, labels, probs, uncertainties,
                     n_samples=16, model_name=name,
@@ -546,9 +547,9 @@ def generate_all_figures(
         all_labels = torch.cat(all_labels)[:500]
 
         for key, name in [('mc_dropout', 'MC Dropout'), ('laplace', 'Laplace')]:
-            if key in results and '_uncertainty' in results[key]:
+            if key in results and '_epistemic_uncertainty' in results[key]:
                 probs = np.array(results[key]['_y_pred'][:500])
-                uncertainties = np.array(results[key]['_uncertainty'][:500])
+                uncertainties = np.array(results[key]['_epistemic_uncertainty'][:500])
                 plot_high_uncertainty_samples(
                     all_images, all_labels, probs, uncertainties,
                     top_k=12, model_name=name,

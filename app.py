@@ -219,7 +219,7 @@ def predict_mc_dropout(model, image_tensor, n_samples=50):
     # mean_prob = probs.mean()
     # uncertainty = probs.std()
     # return mean_prob, uncertainty
-    model.train()  # Enable dropout at test time
+    
     mean_probs, epistemic, aleatoric, total_unc, _ = model.predict_with_uncertainty(
         image_tensor, n_samples=n_samples
     )
@@ -286,7 +286,7 @@ def create_uncertainty_visualization(results):
 
     for ax, (model_name, result), color in zip(axes, results.items(), colors):
         prob = result['probability']
-        uncertainty = result['uncertainty']
+        uncertainty = result.get('epistemic', 0.0) # + result.get('aleatoric', 0.0)
 
         ax.bar([0], [prob], color=color, alpha=0.7, width=0.5)
         if uncertainty > 0:
@@ -499,7 +499,7 @@ def main():
             else:
                 ref_model = 'Deterministic'
 
-            ref_unc = results[ref_model].get('epistemic', 0.0) + results[ref_model].get('aleatoric', 0.0)
+            ref_unc = results[ref_model].get('epistemic', 0.0) # + results[ref_model].get('aleatoric', 0.0)
             ref_prob = results[ref_model]['probability']
 
             interpretation = uncertainty_interpretation(ref_unc)
