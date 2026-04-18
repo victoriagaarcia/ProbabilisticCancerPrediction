@@ -317,11 +317,6 @@ class Trainer:
         
         print(f"\nEntrenamiento completado. Mejor AUC: {best_auc:.4f}")
         
-        # Guardar historial
-        history_path = RESULTS_DIR / 'training_history.json'
-        with open(history_path, 'w') as f:
-            json.dump(self.history, f, indent=2)
-        
         return self.history
     
     def load_best_model(self, model_path: Optional[Path] = None):

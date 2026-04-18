@@ -191,6 +191,10 @@ def compute_negative_log_likelihood(
     Returns:
         NLL promedio
     """
+    # Fix dtypes
+    y_true = np.asarray(y_true, dtype=np.float64)
+    y_pred_proba = np.asarray(y_pred_proba, dtype=np.float64)
+
     # Clip para evitar log(0)
     y_pred_proba = np.clip(y_pred_proba, eps, 1 - eps)
     
