@@ -334,7 +334,7 @@ class Trainer:
         if model_path is None:
             model_path = MODELS_DIR / 'best_model.pt'
         
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
         print(f"Modelo cargado desde {model_path}")
 
 

@@ -507,7 +507,7 @@ def load_model(model_path: Union[str, Path], model_type: str = 'deterministic') 
     else:
         model = MCDropoutCNN(pretrained=False)
     
-    model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+    model.load_state_dict(torch.load(model_path, map_location=DEVICE, weights_only=True))
     return model.to(DEVICE)
 
 # # Función para cargar un modelo Laplace
