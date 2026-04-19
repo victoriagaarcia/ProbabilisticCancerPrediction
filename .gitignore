@@ -3,7 +3,7 @@
 /data
 /data_new
 /data_utils
-/models
+# /models
 /models_firstversion
 /models_secondversion
 uv.lock
