@@ -317,7 +317,6 @@ class Trainer:
         
         print(f"\nEntrenamiento completado. Mejor AUC: {best_auc:.4f}")
         
-        
         return self.history
     
     def load_best_model(self, model_path: Optional[Path] = None):
