@@ -342,7 +342,7 @@ def main():
     
     mc_samples = st.sidebar.slider(
         "MC Dropout Samples",
-        min_value=10, max_value=100, value=50, step=10,
+        min_value=10, max_value=200, value=50, step=10,
         help="Number of forward passes for MC Dropout"
     )
     
@@ -461,8 +461,13 @@ def main():
             for col, (model_name, result) in zip(cols, results.items()):
                 with col:
                     prob = result['probability']
-                    epi  = result.get('epistemic', 0.0)
-                    ale  = result.get('aleatoric', 0.0)
+                    # epi  = result.get('epistemic', 0.0)
+                    if model_name == 'Deterministic':
+                        epi = 0.0
+                    else:
+                        epi = result['epistemic']
+                        # ale  = result.get('aleatoric', 0.0)
+                        ale = result['aleatoric']
 
                     st.markdown(f"**{model_name}**")
 
@@ -491,11 +496,11 @@ def main():
             # ref_prob = results['Laplace']['probability']
             # interpretation = uncertainty_interpretation(laplace_unc)
 
-            # Use best available model for interpretation (prefer Laplace, then MC Dropout)
-            if 'Laplace' in results:
-                ref_model = 'Laplace'
-            elif 'MC Dropout' in results:
+            # Use best available model for interpretation (prefer MC Dropout, then Laplace)
+            if 'MC Dropout' in results:
                 ref_model = 'MC Dropout'
+            elif 'Laplace' in results:
+                ref_model = 'Laplace'
             else:
                 ref_model = 'Deterministic'
 
@@ -520,7 +525,7 @@ def main():
                 {interpretation}
                 
                 {"ℹ️ Consider additional review due to uncertainty in prediction." 
-                 if ref_unc > 0.15 else ""}
+                 if ref_unc > 0.05 else ""}
                 """)
         else:
             st.info("Upload an image and click 'Analyze' to see predictions")
