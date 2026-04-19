@@ -151,7 +151,7 @@ def load_models():
     # if lap_path.exists():
     #     models['laplace'] = load_laplace_model(lap_path)
 
-    # Load .pkl Laplace model, otherwise fit it
+    # Load .pkl Laplace model, otherwise fit it (fitting is slow, so we cache it)
     laplace_pkl_path = MODELS_DIR / "laplace_model.pkl"
     try:
         laplace_model = LaplaceWrapper(models['deterministic'])

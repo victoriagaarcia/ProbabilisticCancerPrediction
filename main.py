@@ -240,7 +240,7 @@ def train_pipeline(args, train_loader, val_loader):
     # Save Laplace model (with pickle since it contains non-serializable objects)
     # Guardamos el objeto Laplace fitted completo (contiene la Hessiana/covarianza)
     # with open(MODELS_DIR / "laplace_fitted.pkl", "wb") as f:
-    #     pickle.dump(laplace_model.la, f)
+    #     pickle.dump(laplace_model.la, f) # No es serializable!
     
     # torch.save({
     #     'base_model_state': det_model.state_dict(),
