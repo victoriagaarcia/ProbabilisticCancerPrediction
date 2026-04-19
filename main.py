@@ -239,19 +239,19 @@ def train_pipeline(args, train_loader, val_loader):
     
     # Save Laplace model (with pickle since it contains non-serializable objects)
     # Guardamos el objeto Laplace fitted completo (contiene la Hessiana/covarianza)
-    with open(MODELS_DIR / "laplace_fitted.pkl", "wb") as f:
-        pickle.dump(laplace_model.la, f)
+    # with open(MODELS_DIR / "laplace_fitted.pkl", "wb") as f:
+    #     pickle.dump(laplace_model.la, f)
     
     # torch.save({
     #     'base_model_state': det_model.state_dict(),
     #     'laplace_fitted': laplace_model.fitted,
     # }, MODELS_DIR / "laplace_model.pt")
-    # torch.save({
-    #     'base_model_state': det_model.state_dict(),
-    #     'laplace_obj': laplace_model.la, # esto no es serializable
-    #     'laplace_fitted': laplace_model.fitted,
-    #     'model_type': 'laplace'
-    # }, MODELS_DIR / "laplace_model.pt")
+    torch.save({
+        'base_model_state': det_model.state_dict(),
+        # 'laplace_obj': laplace_model.la, # esto no es serializable
+        'laplace_fitted': laplace_model.fitted,
+        'model_type': 'laplace'
+    }, MODELS_DIR / "laplace_model.pt")
     
     # =========================================================================
     # STEP 3: Train MC Dropout Model
@@ -493,7 +493,7 @@ Examples:
         # Load Laplace fitted object (.pkl)
         laplace_pkl_path = MODELS_DIR / "laplace_model.pkl"
         laplace_model = LaplaceWrapper(det_model)
-        if laplace_pkl_path.exists():
+        if laplace_pkl_path.exists(): # Este path no va a existir nunca porque no sepuede guardar
             with open(laplace_pkl_path, "rb") as f:
                 laplace_model.la = pickle.load(f)
                 print("✓ Laplace model loaded successfully from pickle")

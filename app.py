@@ -155,7 +155,7 @@ def load_models():
     laplace_pkl_path = MODELS_DIR / "laplace_model.pkl"
     try:
         laplace_model = LaplaceWrapper(models['deterministic'])
-        if laplace_pkl_path.exists():
+        if laplace_pkl_path.exists(): # Este path no va a existir nunca porque no sepuede guardar
             with open(laplace_pkl_path, "rb") as f:
                 laplace_model.la = pickle.load(f)
             laplace_model.fitted = True
