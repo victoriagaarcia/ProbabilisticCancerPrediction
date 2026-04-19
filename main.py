@@ -201,14 +201,18 @@ def train_pipeline(args, train_loader, val_loader):
     det_history['training_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
 
     histories['deterministic'] = det_history
+    # Guardar JSON con el historial de entrenamiento del modelo determinista
+    with open(RESULTS_DIR / "deterministic_training_history.json", 'w') as f:
+        json.dump(det_history, f, indent=2)
     
     print(f"\n✓ Deterministic model trained successfully")
     print(f"  Best validation AUC: {max(det_history['val_auc']):.4f}")
     
-    # =========================================================================
+    # ========================================================================
     # STEP 2: Apply Laplace Approximation
     # =========================================================================
     print_section("STEP 2: Applying Laplace Approximation")
+    # Prueba de texto para explicar el proceso de Laplace Approximation
     
     print("Laplace approximation constructs a Gaussian posterior:")
     print("  q(ω) = N(ω | ω*, Σ)")
@@ -232,6 +236,9 @@ def train_pipeline(args, train_loader, val_loader):
         'fit_memory_delta_mb': (mem_after - mem_before) / 1e6  # Convertir a MB
     }
     histories['laplace'] = la_history
+    # Guardar JSON con el historial de ajuste del modelo Laplace
+    with open(RESULTS_DIR / "laplace_fit_history.json", 'w') as f:
+        json.dump(la_history, f, indent=2)
 
     
     print(f"\n✓ Laplace approximation fitted in {la_history['fit_time_sec']:.2f}s")
@@ -281,6 +288,9 @@ def train_pipeline(args, train_loader, val_loader):
     mc_history['training_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
 
     histories['mc_dropout'] = mc_history
+    # Guardar JSON con el historial de entrenamiento del modelo MC Dropout
+    with open(RESULTS_DIR / "mc_dropout_training_history.json", 'w') as f:
+        json.dump(mc_history, f, indent=2)
     
     print(f"\n✓ MC Dropout model trained successfully")
     print(f"  Best validation AUC: {max(mc_history['val_auc']):.4f}")

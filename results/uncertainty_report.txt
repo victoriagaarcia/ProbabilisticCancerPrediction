@@ -5,30 +5,30 @@ REPORTE DE ANÁLISIS DE INCERTIDUMBRE - MC DROPOUT
 
 ESTADÍSTICAS GENERALES
 ----------------------
-- Incertidumbre media global: 0.000059
-- Desviación estándar: 0.000138
+- Incertidumbre media global: 0.000052
+- Desviación estándar: 0.000133
 - Mínimo: 0.000000
-- Máximo: 0.003037
+- Máximo: 0.003051
 
 INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
 -------------------------------------------
 - Predicciones correctas:
-  * Media: 0.000049
-  * Std: 0.000121
+  * Media: 0.000042
+  * Std: 0.000112
 
 - Predicciones incorrectas:
-  * Media: 0.000288
-  * Std: 0.000251
+  * Media: 0.000300
+  * Std: 0.000276
 
-- Ratio (incorrectas/correctas): 5.94x
+- Ratio (incorrectas/correctas): 7.16x
 
 Un ratio > 1 indica que el modelo tiene más incertidumbre cuando falla,
 lo cual es el comportamiento deseado de un modelo bayesiano bien calibrado.
 
 TOP 20 EJEMPLOS MÁS INCIERTOS
 ----------------------------------
-- Accuracy en estos ejemplos: 75.0%
-- Incertidumbre media en top-20: 0.001994
+- Accuracy en estos ejemplos: 50.0%
+- Incertidumbre media en top-20: 0.001875
 
 Estos ejemplos representan casos ambiguos que deberían ser revisados
 por un experto humano en un entorno clínico real.
@@ -45,30 +45,30 @@ REPORTE DE ANÁLISIS DE INCERTIDUMBRE - LAPLACE
 
 ESTADÍSTICAS GENERALES
 ----------------------
-- Incertidumbre media global: 0.000081
-- Desviación estándar: 0.000312
+- Incertidumbre media global: 0.000018
+- Desviación estándar: 0.000074
 - Mínimo: 0.000000
-- Máximo: 0.007736
+- Máximo: 0.001900
 
 INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
 -------------------------------------------
 - Predicciones correctas:
-  * Media: 0.000057
-  * Std: 0.000250
+  * Media: 0.000012
+  * Std: 0.000059
 
 - Predicciones incorrectas:
-  * Media: 0.000707
-  * Std: 0.000774
+  * Media: 0.000165
+  * Std: 0.000189
 
-- Ratio (incorrectas/correctas): 12.47x
+- Ratio (incorrectas/correctas): 13.23x
 
 Un ratio > 1 indica que el modelo tiene más incertidumbre cuando falla,
 lo cual es el comportamiento deseado de un modelo bayesiano bien calibrado.
 
 TOP 20 EJEMPLOS MÁS INCIERTOS
 ----------------------------------
-- Accuracy en estos ejemplos: 60.0%
-- Incertidumbre media en top-20: 0.004766
+- Accuracy en estos ejemplos: 55.0%
+- Incertidumbre media en top-20: 0.001168
 
 Estos ejemplos representan casos ambiguos que deberían ser revisados
 por un experto humano en un entorno clínico real.

@@ -1,0 +1,534 @@
+Execution started at 2026-04-19 08:32:48
+
+===========================================================================
+   BAYESIAN NEURAL NETWORKS FOR HISTOPATHOLOGIC CANCER DETECTION
+===========================================================================
+   Device: cuda
+   Started: 2026-04-19 08:32:48
+===========================================================================
+
+
+───────────────────────────────────────────────────────────────────────────
+  DATA PREPARATION
+───────────────────────────────────────────────────────────────────────────
+
+Loading and splitting dataset...
+División del dataset:
+  - Train: 154017 muestras (70.0%)
+  - Val:   33004 muestras (15.0%)
+  - Test:  33004 muestras (15.0%)
+  - Train clase positiva: 40.5%
+  - Val clase positiva: 40.5%
+  - Test clase positiva: 40.5%
+  Training samples:   154,017
+  Validation samples: 33,004
+  Test samples:       33,004
+
+✓ Exact data splits saved for later reuse
+  Train split: /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/train_split.csv
+  Val split:   /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/val_split.csv
+  Test split:  /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/test_split.csv
+  Metadata:    /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/data_splits/split_metadata.json
+
+✓ Data loaders created (batch size: 64)
+Data loaded at 2026-04-19 08:32:49
+
+───────────────────────────────────────────────────────────────────────────
+  STEP 1: Training Deterministic CNN (MAP Estimate)
+───────────────────────────────────────────────────────────────────────────
+
+This model serves as:
+  • Baseline for performance comparison
+  • MAP estimate (ω*) for Laplace Approximation
+
+Training for 25 epochs...
+Parámetros totales: 11,177,538
+Parámetros entrenables: 10,494,466
+Parámetros congelados: 683,072
+Iniciando entrenamiento por 25 épocas máximo...
+Dispositivo: cuda
+Early stopping patience: 5
+--------------------------------------------------
+Época   1/25                                                                                                              
+  Train - Loss: 0.2851, AUC: 0.9463
+  Val   - Loss: 0.1995, AUC: 0.9742
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9742)
+--------------------------------------------------
+Época   2/25                                                                                                              
+  Train - Loss: 0.2288, AUC: 0.9651
+  Val   - Loss: 0.1813, AUC: 0.9804
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9804)
+--------------------------------------------------
+Época   3/25                                                                                                              
+  Train - Loss: 0.2090, AUC: 0.9709
+  Val   - Loss: 0.1678, AUC: 0.9823
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9823)
+--------------------------------------------------
+Época   4/25                                                                                                              
+  Train - Loss: 0.1964, AUC: 0.9740
+  Val   - Loss: 0.1596, AUC: 0.9831
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9831)
+--------------------------------------------------
+Época   5/25                                                                                                              
+  Train - Loss: 0.1870, AUC: 0.9764
+  Val   - Loss: 0.1555, AUC: 0.9842
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9842)
+--------------------------------------------------
+Época   6/25                                                                                                              
+  Train - Loss: 0.1781, AUC: 0.9786
+  Val   - Loss: 0.1457, AUC: 0.9857
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9857)
+--------------------------------------------------
+Época   7/25                                                                                                              
+  Train - Loss: 0.1717, AUC: 0.9801
+  Val   - Loss: 0.1393, AUC: 0.9874
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9874)
+--------------------------------------------------
+Época   8/25                                                                                                              
+  Train - Loss: 0.1667, AUC: 0.9811
+  Val   - Loss: 0.1428, AUC: 0.9874
+--------------------------------------------------
+Época   9/25                                                                                                              
+  Train - Loss: 0.1627, AUC: 0.9820
+  Val   - Loss: 0.1297, AUC: 0.9884
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9884)
+--------------------------------------------------
+Época  10/25                                                                                                              
+  Train - Loss: 0.1583, AUC: 0.9828
+  Val   - Loss: 0.1267, AUC: 0.9890
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9890)
+--------------------------------------------------
+Época  11/25                                                                                                              
+  Train - Loss: 0.1567, AUC: 0.9834
+  Val   - Loss: 0.1296, AUC: 0.9887
+--------------------------------------------------
+Época  12/25                                                                                                              
+  Train - Loss: 0.1531, AUC: 0.9841
+  Val   - Loss: 0.1290, AUC: 0.9890
+--------------------------------------------------
+Época  13/25                                                                                                              
+  Train - Loss: 0.1491, AUC: 0.9847
+  Val   - Loss: 0.1341, AUC: 0.9891
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9891)
+--------------------------------------------------
+Época  14/25                                                                                                              
+  Train - Loss: 0.1457, AUC: 0.9856
+  Val   - Loss: 0.1311, AUC: 0.9881
+--------------------------------------------------
+Época  15/25                                                                                                              
+  Train - Loss: 0.1316, AUC: 0.9881
+  Val   - Loss: 0.1174, AUC: 0.9908
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9908)
+--------------------------------------------------
+Época  16/25                                                                                                              
+  Train - Loss: 0.1250, AUC: 0.9892
+  Val   - Loss: 0.1090, AUC: 0.9919
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9919)
+--------------------------------------------------
+Época  17/25                                                                                                              
+  Train - Loss: 0.1232, AUC: 0.9896
+  Val   - Loss: 0.1152, AUC: 0.9914
+--------------------------------------------------
+Época  18/25                                                                                                              
+  Train - Loss: 0.1205, AUC: 0.9900
+  Val   - Loss: 0.1097, AUC: 0.9917
+--------------------------------------------------
+Época  19/25                                                                                                              
+  Train - Loss: 0.1179, AUC: 0.9904
+  Val   - Loss: 0.1096, AUC: 0.9918
+--------------------------------------------------
+Época  20/25                                                                                                              
+  Train - Loss: 0.1155, AUC: 0.9908
+  Val   - Loss: 0.1135, AUC: 0.9911
+--------------------------------------------------
+Época  21/25                                                                                                              
+  Train - Loss: 0.1064, AUC: 0.9922
+  Val   - Loss: 0.1080, AUC: 0.9922
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9922)
+--------------------------------------------------
+Época  22/25                                                                                                              
+  Train - Loss: 0.1034, AUC: 0.9926
+  Val   - Loss: 0.1104, AUC: 0.9925
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9925)
+--------------------------------------------------
+Época  23/25                                                                                                              
+  Train - Loss: 0.1014, AUC: 0.9928
+  Val   - Loss: 0.1074, AUC: 0.9923
+--------------------------------------------------
+Época  24/25                                                                                                              
+  Train - Loss: 0.0977, AUC: 0.9934
+  Val   - Loss: 0.1050, AUC: 0.9926
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9926)
+--------------------------------------------------
+Época  25/25                                                                                                              
+  Train - Loss: 0.0980, AUC: 0.9933
+  Val   - Loss: 0.1062, AUC: 0.9928
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9928)
+--------------------------------------------------
+
+Entrenamiento completado. Mejor AUC: 0.9928
+Modelo cargado desde /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/models/deterministic_model.pt
+
+✓ Deterministic model trained successfully
+  Best validation AUC: 0.9928
+
+───────────────────────────────────────────────────────────────────────────
+  STEP 2: Applying Laplace Approximation
+───────────────────────────────────────────────────────────────────────────
+
+Laplace approximation constructs a Gaussian posterior:
+  q(ω) = N(ω | ω*, Σ)
+  where Σ = (H + λI)⁻¹ and H is the Hessian
+
+Applying to last layer only (tractable computation)...
+Calculando Hessiano de la log-posterior...
+Optimizando precisión del prior...
+/opt/conda/lib/python3.13/site-packages/laplace/baselaplace.py:435: UserWarning: By default `link_approx` is `probit`. Make sure to set it equals to the way you want to call `la(test_data, pred_type=..., link_approx=...)`.
+  warnings.warn(
+Laplace Approximation ajustada correctamente.
+
+✓ Laplace approximation fitted in 68.56s
+  Prior precision optimized via marginal likelihood
+
+───────────────────────────────────────────────────────────────────────────
+  STEP 3: Training MC Dropout Model
+───────────────────────────────────────────────────────────────────────────
+
+MC Dropout approximates Bayesian inference by:
+  • Keeping dropout active at test time
+  • Each forward pass samples from approximate posterior
+  • Dropout rate: 0.3
+
+Training for 25 epochs...
+Iniciando entrenamiento por 25 épocas máximo...
+Dispositivo: cuda
+Early stopping patience: 5
+--------------------------------------------------
+Época   1/25                                                                                                              
+  Train - Loss: 0.2836, AUC: 0.9467
+  Val   - Loss: 0.1994, AUC: 0.9743
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9743)
+--------------------------------------------------
+Época   2/25                                                                                                              
+  Train - Loss: 0.2300, AUC: 0.9648
+  Val   - Loss: 0.1764, AUC: 0.9796
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9796)
+--------------------------------------------------
+Época   3/25                                                                                                              
+  Train - Loss: 0.2095, AUC: 0.9707
+  Val   - Loss: 0.1659, AUC: 0.9822
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9822)
+--------------------------------------------------
+Época   4/25                                                                                                              
+  Train - Loss: 0.1978, AUC: 0.9738
+  Val   - Loss: 0.1597, AUC: 0.9827
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9827)
+--------------------------------------------------
+Época   5/25                                                                                                              
+  Train - Loss: 0.1880, AUC: 0.9762
+  Val   - Loss: 0.1435, AUC: 0.9860
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9860)
+--------------------------------------------------
+Época   6/25                                                                                                              
+  Train - Loss: 0.1808, AUC: 0.9779
+  Val   - Loss: 0.1636, AUC: 0.9858
+--------------------------------------------------
+Época   7/25                                                                                                              
+  Train - Loss: 0.1757, AUC: 0.9789
+  Val   - Loss: 0.1405, AUC: 0.9869
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9869)
+--------------------------------------------------
+Época   8/25                                                                                                              
+  Train - Loss: 0.1679, AUC: 0.9808
+  Val   - Loss: 0.1396, AUC: 0.9870
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9870)
+--------------------------------------------------
+Época   9/25                                                                                                              
+  Train - Loss: 0.1653, AUC: 0.9814
+  Val   - Loss: 0.1454, AUC: 0.9864
+--------------------------------------------------
+Época  10/25                                                                                                              
+  Train - Loss: 0.1609, AUC: 0.9824
+  Val   - Loss: 0.1293, AUC: 0.9894
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9894)
+--------------------------------------------------
+Época  11/25                                                                                                              
+  Train - Loss: 0.1561, AUC: 0.9835
+  Val   - Loss: 0.1438, AUC: 0.9881
+--------------------------------------------------
+Época  12/25                                                                                                              
+  Train - Loss: 0.1532, AUC: 0.9839
+  Val   - Loss: 0.1360, AUC: 0.9878
+--------------------------------------------------
+Época  13/25                                                                                                              
+  Train - Loss: 0.1509, AUC: 0.9846
+  Val   - Loss: 0.1279, AUC: 0.9889
+--------------------------------------------------
+Época  14/25                                                                                                              
+  Train - Loss: 0.1468, AUC: 0.9852
+  Val   - Loss: 0.1335, AUC: 0.9890
+--------------------------------------------------
+Época  15/25                                                                                                              
+  Train - Loss: 0.1316, AUC: 0.9880
+  Val   - Loss: 0.1158, AUC: 0.9914
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9914)
+--------------------------------------------------
+Época  16/25                                                                                                              
+  Train - Loss: 0.1270, AUC: 0.9888
+  Val   - Loss: 0.1159, AUC: 0.9911
+--------------------------------------------------
+Época  17/25                                                                                                              
+  Train - Loss: 0.1240, AUC: 0.9894
+  Val   - Loss: 0.1165, AUC: 0.9911
+--------------------------------------------------
+Época  18/25                                                                                                              
+  Train - Loss: 0.1219, AUC: 0.9898
+  Val   - Loss: 0.1121, AUC: 0.9914
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9914)
+--------------------------------------------------
+Época  19/25                                                                                                              
+  Train - Loss: 0.1185, AUC: 0.9902
+  Val   - Loss: 0.1134, AUC: 0.9913
+--------------------------------------------------
+Época  20/25                                                                                                              
+  Train - Loss: 0.1104, AUC: 0.9916
+  Val   - Loss: 0.1081, AUC: 0.9920
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9920)
+--------------------------------------------------
+Época  21/25                                                                                                              
+  Train - Loss: 0.1066, AUC: 0.9921
+  Val   - Loss: 0.1097, AUC: 0.9919
+--------------------------------------------------
+Época  22/25                                                                                                              
+  Train - Loss: 0.1056, AUC: 0.9923
+  Val   - Loss: 0.1069, AUC: 0.9921
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9921)
+--------------------------------------------------
+Época  23/25                                                                                                              
+  Train - Loss: 0.1011, AUC: 0.9928
+  Val   - Loss: 0.1079, AUC: 0.9922
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9922)
+--------------------------------------------------
+Época  24/25                                                                                                              
+  Train - Loss: 0.1022, AUC: 0.9928
+  Val   - Loss: 0.1088, AUC: 0.9926
+  ✓ Nuevo mejor modelo guardado (AUC: 0.9926)
+--------------------------------------------------
+Época  25/25                                                                                                              
+  Train - Loss: 0.0994, AUC: 0.9931
+  Val   - Loss: 0.1074, AUC: 0.9923
+--------------------------------------------------
+
+Entrenamiento completado. Mejor AUC: 0.9926
+Modelo cargado desde /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/models/mc_dropout_model.pt
+
+✓ MC Dropout model trained successfully
+  Best validation AUC: 0.9926
+Models trained at 2026-04-19 09:37:43
+
+───────────────────────────────────────────────────────────────────────────
+  STEP 4: Comprehensive Evaluation
+───────────────────────────────────────────────────────────────────────────
+
+Evaluating all models on test set...
+  • Deterministic CNN (point estimate)
+  • Laplace Approximation (100 posterior samples)
+  • MC Dropout (50 forward passes)
+
+============================================================
+EVALUANDO MODELO DETERMINISTA
+============================================================
+Evaluating Deterministic: 100%|█████████████████████████████████████████████████████████| 516/516 [00:12<00:00, 39.91it/s]
+AUC-ROC: 0.9923
+ECE: 0.0064
+Tiempo de inferencia: 12.94 segundos
+Uso de memoria: 0.00 MB
+
+============================================================
+EVALUANDO MC DROPOUT
+============================================================
+Evaluating MC Dropout: 100%|████████████████████████████████████████████████████████████| 516/516 [01:06<00:00,  7.78it/s]
+AUC-ROC: 0.9923
+ECE: 0.0048
+Incertidumbre media (correctas): 0.0000
+Incertidumbre media (incorrectas): 0.0003
+
+============================================================
+EVALUANDO LAPLACE APPROXIMATION
+============================================================
+Evaluating Laplace: 100%|███████████████████████████████████████████████████████████████| 516/516 [00:11<00:00, 46.40it/s]
+AUC-ROC: 0.9924
+ECE: 0.2455
+Incertidumbre media (correctas): 0.0000
+Incertidumbre media (incorrectas): 0.0002
+
+================================================================================
+COMPARACIÓN DE MÉTRICAS
+================================================================================
+Modelo              AUC_ROC     F1_SCORE    ACCURACY    ECE         BRIER_SCORE NLL         
+--------------------------------------------------------------------------------
+Deterministic       0.9923      0.9547      0.9631      0.0064      0.0283      0.1065      
+MC Dropout          0.9923      0.9517      0.9604      0.0048      0.0302      0.1095      
+Laplace             0.9924      0.9548      0.9632      0.2455      0.0909      0.3539      
+================================================================================
+
+NOTA: Para ECE, Brier Score y NLL, menor es mejor.
+      Para AUC-ROC, F1-Score y Accuracy, mayor es mejor.
+Resultados guardados en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results
+Figuras guardadas en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results
+
+───────────────────────────────────────────────────────────────────────────
+  RESULTS SUMMARY
+───────────────────────────────────────────────────────────────────────────
+
+Classification Performance (AUC-ROC):
+  Deterministic:  0.9923
+  Laplace:        0.9924
+  MC Dropout:     0.9923
+
+Calibration Metrics (ECE - lower is better):
+  Deterministic:  0.0064
+  Laplace:        0.2455
+  MC Dropout:     0.0048
+
+Brier Score (lower is better):
+  Deterministic:  0.0283
+  Laplace:        0.0909
+  MC Dropout:     0.0302
+
+Uncertainty Decomposition & Triage (Laplace / MC Dropout):
+
+  laplace:
+    Referral rate (uncertain → human): 0.0%
+    Coverage (auto-resolved):          100.0%
+    Accuracy on confident predictions: 0.9632
+
+  mc_dropout:
+    Referral rate (uncertain → human): 0.0%
+    Coverage (auto-resolved):          100.0%
+    Accuracy on confident predictions: 0.9604
+
+Inference Profiling:
+  deterministic: 12942.5 ms | 0.0 MB
+  laplace: 11149.2 ms | -0.0 MB
+  mc_dropout: 66344.9 ms | 0.0 MB
+
+───────────────────────────────────────────────────────────────────────────
+  STEP 5: Uncertainty Analysis
+───────────────────────────────────────────────────────────────────────────
+
+Reporte guardado en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results/uncertainty_report.txt
+
+================================================================================
+REPORTE DE ANÁLISIS DE INCERTIDUMBRE - MC DROPOUT
+================================================================================
+
+ESTADÍSTICAS GENERALES
+----------------------
+- Incertidumbre media global: 0.000052
+- Desviación estándar: 0.000133
+- Mínimo: 0.000000
+- Máximo: 0.003051
+
+INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
+-------------------------------------------
+- Predicciones correctas:
+  * Media: 0.000042
+  * Std: 0.000112
+
+- Predicciones incorrectas:
+  * Media: 0.000300
+  * Std: 0.000276
+
+- Ratio (incorrectas/correctas): 7.16x
+
+Un ratio > 1 indica que el modelo tiene más incertidumbre cuando falla,
+lo cual es el comportamiento deseado de un modelo bayesiano bien calibrado.
+
+TOP 20 EJEMPLOS MÁS INCIERTOS
+----------------------------------
+- Accuracy en estos ejemplos: 50.0%
+- Incertidumbre media en top-20: 0.001875
+
+Estos ejemplos representan casos ambiguos que deberían ser revisados
+por un experto humano en un entorno clínico real.
+
+CONCLUSIÓN
+----------
+El modelo muestra buena separación de incertidumbre entre aciertos y errores.
+
+================================================================================
+
+================================================================================
+REPORTE DE ANÁLISIS DE INCERTIDUMBRE - LAPLACE
+================================================================================
+
+ESTADÍSTICAS GENERALES
+----------------------
+- Incertidumbre media global: 0.000018
+- Desviación estándar: 0.000074
+- Mínimo: 0.000000
+- Máximo: 0.001900
+
+INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
+-------------------------------------------
+- Predicciones correctas:
+  * Media: 0.000012
+  * Std: 0.000059
+
+- Predicciones incorrectas:
+  * Media: 0.000165
+  * Std: 0.000189
+
+- Ratio (incorrectas/correctas): 13.23x
+
+Un ratio > 1 indica que el modelo tiene más incertidumbre cuando falla,
+lo cual es el comportamiento deseado de un modelo bayesiano bien calibrado.
+
+TOP 20 EJEMPLOS MÁS INCIERTOS
+----------------------------------
+- Accuracy en estos ejemplos: 55.0%
+- Incertidumbre media en top-20: 0.001168
+
+Estos ejemplos representan casos ambiguos que deberían ser revisados
+por un experto humano en un entorno clínico real.
+
+CONCLUSIÓN
+----------
+El modelo muestra buena separación de incertidumbre entre aciertos y errores.
+
+================================================================================
+
+───────────────────────────────────────────────────────────────────────────
+  STEP 6: Generating Figures
+───────────────────────────────────────────────────────────────────────────
+
+
+============================================================
+GENERANDO FIGURAS PARA LA MEMORIA
+============================================================
+Curvas de entrenamiento guardadas en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/training_deterministic.png
+Curvas de entrenamiento guardadas en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/training_mc_dropout.png
+Análisis de incertidumbre guardado en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/uncertainty_vs_error_mc_dropout.png
+Análisis de incertidumbre guardado en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/uncertainty_vs_error_laplace.png
+Figura resumen guardada en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/summary_comparison.png
+Predicciones de ejemplo guardadas en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/sample_predictions_mc_dropout.png
+Predicciones de ejemplo guardadas en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/sample_predictions_laplace.png
+Ejemplos de alta incertidumbre guardados en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/high_uncertainty_samples_mc_dropout.png
+Ejemplos de alta incertidumbre guardados en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures/high_uncertainty_samples_laplace.png
+
+Todas las figuras guardadas en /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures
+
+✓ All figures saved to /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures
+Evaluation completed at 2026-04-19 09:39:45
+
+===========================================================================
+   EXPERIMENT COMPLETED SUCCESSFULLY
+===========================================================================
+
+  Models saved to:     /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/models
+  Results saved to:    /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/results
+  Figures saved to:    /home/jovyan/jupyterlab_container/ProbabilisticCancerPrediction/figures
+
+  Finished: 2026-04-19 09:39:45
+===========================================================================
