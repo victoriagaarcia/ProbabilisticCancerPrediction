@@ -204,7 +204,7 @@ def train_pipeline(args, train_loader, val_loader):
     # Guardar JSON con el historial de entrenamiento del modelo determinista
     with open(RESULTS_DIR / "deterministic_training_history.json", 'w') as f:
         json.dump(det_history, f, indent=2)
-    
+
     print(f"\n✓ Deterministic model trained successfully")
     print(f"  Best validation AUC: {max(det_history['val_auc']):.4f}")
     
@@ -291,7 +291,7 @@ def train_pipeline(args, train_loader, val_loader):
     # Guardar JSON con el historial de entrenamiento del modelo MC Dropout
     with open(RESULTS_DIR / "mc_dropout_training_history.json", 'w') as f:
         json.dump(mc_history, f, indent=2)
-    
+
     print(f"\n✓ MC Dropout model trained successfully")
     print(f"  Best validation AUC: {max(mc_history['val_auc']):.4f}")
     
