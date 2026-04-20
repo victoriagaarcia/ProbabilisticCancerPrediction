@@ -15,4 +15,6 @@ uv.lock
 *.log
 *.out
 *.synctex.gz
+*.bbl
+*.blg
 neurips_2025.pdf
