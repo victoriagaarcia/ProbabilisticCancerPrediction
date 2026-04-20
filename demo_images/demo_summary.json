@@ -1,0 +1,61 @@
+{
+  "mc_samples": 50,
+  "uncertainty_thresholds": {
+    "mc_dropout": 0.00010697950347093865,
+    "laplace": 5.562150818150258e-06
+  },
+  "confidence_threshold": 0.5,
+  "total_images_processed": 33004,
+  "mc_dropout": {
+    "counts": {
+      "CANCER": 11841,
+      "UNCERTAIN": 4972,
+      "BENIGN": 16191
+    },
+    "percentages": {
+      "BENIGN": 49.06,
+      "CANCER": 35.88,
+      "UNCERTAIN": 15.06
+    }
+  },
+  "laplace": {
+    "counts": {
+      "CANCER": 11466,
+      "UNCERTAIN": 4957,
+      "BENIGN": 16581
+    },
+    "percentages": {
+      "BENIGN": 50.24,
+      "CANCER": 34.74,
+      "UNCERTAIN": 15.02
+    }
+  },
+  "saved_images": {
+    "BENIGN": [
+      "benign_01_gt0_mc.png",
+      "benign_02_gt0_mc_la.png",
+      "benign_03_gt0_mc_la.png",
+      "benign_04_gt0_mc_la.png",
+      "benign_05_gt0_mc_la.png"
+    ],
+    "CANCER": [
+      "cancer_01_gt1_mc_la.png",
+      "cancer_02_gt1_mc_la.png",
+      "cancer_03_gt1_mc_la.png",
+      "cancer_04_gt1_mc_la.png",
+      "cancer_05_gt1_mc_la.png"
+    ],
+    "UNCERTAIN": [
+      "uncertain_01_gt0_mc_la.png",
+      "uncertain_02_gt0_mc_la.png",
+      "uncertain_03_gt0_mc.png",
+      "uncertain_04_gt0_mc_la.png",
+      "uncertain_05_gt0_mc_la.png"
+    ]
+  },
+  "agreement_in_saved": {
+    "BENIGN": 4,
+    "CANCER": 5,
+    "UNCERTAIN": 4
+  }
+}
