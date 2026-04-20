@@ -371,78 +371,88 @@ class LaplaceWrapper:
         
         return self
     
+    def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Probabilidad predictiva de Laplace usando la ruta GLM + probit.
+
+        Esta será la probabilidad "oficial" para métricas de calibración
+        (ECE, Brier, NLL), porque es la regla predictiva coherente con
+        el __call__ del wrapper.
+        """
+        if not self.fitted:
+            raise RuntimeError("Debe llamar fit() antes de predecir con Laplace")
+
+        self.model.eval()
+
+        with torch.no_grad():
+            probs = self.la(x, pred_type='glm', link_approx='probit')
+
+        # Seguridad numérica para métricas tipo NLL
+        probs = probs.clamp(min=1e-6, max=1.0 - 1e-6)
+        probs = probs / probs.sum(dim=1, keepdim=True)
+
+        return probs
+
+
     def predict_with_uncertainty(
         self,
         x: torch.Tensor,
         n_samples: int = LAPLACE_SAMPLES
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Predicción con incertidumbre usando Laplace.
-        
-        El proceso es:
-        1. Muestrear pesos de q(ω) = N(ω | ω*, Σ)
-        2. Para cada muestra, hacer forward pass
-        3. Promediar las predicciones
-        
-        La varianza predictiva tiene dos componentes:
-        - Incertidumbre aleatórica: inherente al ruido de los datos
-        - Incertidumbre epistémica: debido a incertidumbre en los pesos
-        
-        Args:
-            x: Tensor de imágenes [B, 3, H, W]
-            n_samples: Número de muestras de pesos
-            
-        Returns:
-            Tupla (mean_probs, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty, all_probs):
-            - mean_probs: Probabilidades medias [B, NUM_CLASSES]
-            - epistemic_uncertainty: Incertidumbre epistémica [B]
-            - aleatoric_uncertainty: Incertidumbre aleatoria [B]
-            - total_uncertainty: Incertidumbre total [B]
-            - all_probs: Todas las muestras [n_samples, B, NUM_CLASSES]
+
+        Estrategia híbrida práctica:
+        - mean_probs: se obtiene con GLM + probit (mejor para calibración)
+        - incertidumbre: se estima con muestras del posterior usando pred_type='nn'
+
+        Esto mantiene la interfaz que ya usa evaluate.py y app.py:
+        (mean_probs, epistemic_uncertainty, aleatoric_uncertainty,
+        total_uncertainty, all_probs)
         """
         if not self.fitted:
             raise RuntimeError("Debe llamar fit() antes de predict_with_uncertainty()")
 
-        # predictive_samples muestrea pesos del posterior q(ω) = N(ω*, Σ)
-        # y hace un forward pass por cada muestra.
-        # Retorna shape: [n_samples, B, num_classes]
+        self.model.eval()
+
+        # 1) Probabilidad media para evaluación/calibración
+        mean_probs = self.predict_proba(x)  # [B, num_classes]
+
+        # 2) Muestreo del posterior solo para cuantificar incertidumbre
         with torch.no_grad():
             all_logits = self.la.predictive_samples(
-                x, pred_type='nn', n_samples=n_samples
-            )
-        
-        # Convertir logits a probabilidades
-        all_probs = torch.softmax(all_logits, dim=-1)  # [n_samples, B, num_classes]
+                x,
+                pred_type='nn',
+                n_samples=n_samples
+            )  # [S, B, C]
 
-        # all_probs: [n_samples, B, num_classes]
-        mean_probs = all_probs.mean(dim=0)                  # [B, num_classes]
+        all_probs = torch.softmax(all_logits, dim=-1)  # [S, B, C]
 
-        # En el modelo de Laplace, también descomponemos la incertidumbre:
-        # - Epistémica: varianza entre las muestras de predicción
-        # - Aleatoria: media de p(1-p) sobre las muestras
+        # Clase positiva
+        p_positive_samples = all_probs[:, :, 1]   # [S, B]
+        p_positive_mean = mean_probs[:, 1]        # [B]
 
-        # Probabilidad de clase positiva
-        p_positive = all_probs[:, :, 1]  # [n_samples, B]
+        # Epistémica: varianza entre muestras del posterior
+        epistemic_uncertainty = p_positive_samples.var(dim=0, unbiased=False)  # [B]
 
-        # Incertidumbre epistémica (igual que en MC Dropout): varianza entre las muestras
-        epistemic_uncertainty = p_positive.var(dim=0)  # [B]
+        # Aleatórica: usando la media predictiva final
+        aleatoric_uncertainty = p_positive_mean * (1.0 - p_positive_mean)      # [B]
 
-        # Incertidumbre aleatoria: media de p(1-p) sobre las muestras
-        aleatoric_uncertainty = (p_positive * (1 - p_positive)).mean(dim=0)  # [B]
+        # Total
+        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty      # [B]
 
-        # Incertidumbre total: suma de las dos componentes
-        total_uncertainty = epistemic_uncertainty + aleatoric_uncertainty  # [B]
+        return (
+            mean_probs,
+            epistemic_uncertainty,
+            aleatoric_uncertainty,
+            total_uncertainty,
+            all_probs
+        )
 
-        return mean_probs, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty, all_probs
 
     def __call__(self, x: torch.Tensor) -> torch.Tensor:
-        """Predicción directa usando la media del posterior."""
-        if not self.fitted:
-            raise RuntimeError("Debe llamar fit() primero")
-        
-        with torch.no_grad():
-            return self.la(x, pred_type='glm', link_approx='probit')
-
+        """Alias de predicción directa."""
+        return self.predict_proba(x)
 
 def create_deterministic_model(pretrained: bool = True) -> DeterministicCNN:
     """
