@@ -54,7 +54,7 @@
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
 \usepackage{xcolor}         % colors
-
+\usepackage{graphicx}
 \usepackage{amsmath}
 
 % Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote. 
@@ -236,8 +236,8 @@ aproximaci\'on de Laplace.
 \label{sec:methods-tradeoff}
  
 La literatura ofrece un rango amplio de m\'etodos de inferencia
-aproximada para redes neuronales bayesianas (BNNs). La Tabla~\ref{tab:methods} (Anexo~\ref{sec:appendix-methods})
-resume los factores que más comprometen la selección, la cual debe ponderar el coste
+aproximada para redes neuronales bayesianas (BNNs). En el (Anexo~\ref{sec:appendix-methods})
+se resumen los factores que más comprometen la selección, la cual debe ponderar el coste
 de entrenamiento, el coste de inferencia, la necesidad o no de
 reentrenamiento y la fidelidad de la aproximaci\'on al posterior.
 
@@ -343,8 +343,8 @@ aproximaci\'on variacional impl\'icita.
 \subsection{Modelo determinista: estimaci\'on MAP}
 \label{sec:map-model}
 
-El clasificador de referencia se entrena minimizando la p\'erdida de
-entrop\'ia cruzada con regularizaci\'on \(L_2\):
+El clasificador de referencia se entrena minimizando la p\'erdida % de entrop\'ia cruzada 
+\emph{cross-entropy} con regularizaci\'on \(L_2\):
 \begin{equation}
 \mathcal{L}(\boldsymbol{\omega})
 =
@@ -509,7 +509,7 @@ p_{\mathrm{GLM\text{-}probit}}(y=1\mid \mathbf{x},\mathcal{D}).
 \end{equation}
 Adicionalmente, para cuantificar incertidumbre epist\'emica extraemos
 \(T_{\mathrm{LA}}=100\) muestras posteriores
-\(\boldsymbol{\psi}^{(t)}\sim q(\boldsymbol{\psi})\) y computamos
+\(\boldsymbol{\psi}^{(t)}\sim q(\boldsymbol{\psi})\) y calculamos
 \begin{equation}
 p_t(\mathbf{x})
 =
@@ -670,7 +670,7 @@ La Tabla~\ref{tab:hyper} resume los hiperpar\'ametros empleados y su interpretac
     Entrenamiento & \texttt{PATIENCE}              & $5$           & Paciencia sobre AUC de validaci\'on \\
     Prior         & \texttt{WEIGHT\_DECAY} $=\lambda$ & $10^{-4}$ & Precisi\'on del prior $p(\omega)=\mathcal{N}(\mathbf{0},\lambda^{-1}\mathbf{I})$ \\
     MC Dropout    & \texttt{DROPOUT\_RATE} $=p$   & $0{,}3$       & Familia variacional Bernoulli \\
-    MC Dropout    & \texttt{MC\_SAMPLES} $=T$     & $50$          & Muestras de~\eqref{eq:predictive-mc} \\
+    MC Dropout    & \texttt{MC\_SAMPLES} $=T$     & $50$          & Muestras de~\eqref{eq:mc-predictive} \\
     Laplace       & \texttt{LAPLACE\_SUBSET}      & \texttt{last\_layer} & Tractabilidad de $\boldsymbol{\Sigma}$ \\
     Laplace       & \texttt{LAPLACE\_HESSIAN}     & \texttt{kron} & Factorizaci\'on KFAC del Hessiano \\
     Laplace       & \texttt{LAPLACE\_SAMPLES}     & $100$         & Muestras de pesos en inferencia \\
@@ -716,6 +716,380 @@ AUC-ROC, \emph{accuracy}, F1-score con umbral $0.5$, \emph{precision} y \emph{re
         Un modelo perfectamente calibrado satisface $\mathrm{ECE} = 0$.
 \end{itemize}
 
+
+
+\section{Resultados y discusi\'on}
+\label{sec:results}
+
+En esta secci\'on se presenta la evaluaci\'on de los modelos
+determinista, MC Dropout y aproximaci\'on de Laplace sobre el conjunto
+de test ($N_{\mathrm{test}}\!=\!33\,004$). 
+Los dos modelos entrenados (determinista y MC Dropout) convergen en $25$ \'epocas sin s\'intomas de
+sobreajuste; las curvas de entrenamiento (Ap\'endice~\ref{app:training})
+muestran en ambos casos una p\'erdida de validaci\'on que sigue a la de
+entrenamiento hasta el final y un AUC de validaci\'on que se estabiliza en torno a $0.99$.
+
+\subsection{Rendimiento y calibraci\'on}
+\label{sec:perf-calib}
+
+La Tabla~\ref{tab:main} resume las m\'etricas principales sobre test,
+incluyendo los indicadores de la pol\'itica de triaje
+(Secci\'on~\ref{sec:triage}). Tres conclusiones cuantitativas, una para
+cada bloque vertical de la tabla.
+
+\begin{table}[t]
+  \caption{M\'etricas principales sobre el conjunto de test
+           ($N_{\mathrm{test}}\!=\!33\,004$);
+           $\uparrow$ indica m\'etrica a maximizar, $\downarrow$ a minimizar.
+           Las columnas \emph{Refer.} y \emph{Acc$_{\text{ret}}$}
+           corresponden, respectivamente, a la tasa de derivaci\'on a
+           revisi\'on humana (percentil 85 de $u_{\mathrm{epi}}$) y a la
+           exactitud sobre el subconjunto autom\'aticamente clasificado.
+           El valor \'optimo de cada columna se marca en negrita.}
+  \label{tab:main}
+  \centering
+  \small
+  \setlength{\tabcolsep}{4.5pt}
+  \begin{tabular}{lcccccccc}
+    \toprule
+    Modelo & AUC $\uparrow$ & F1 $\uparrow$ & Acc.\ $\uparrow$
+           & ECE $\downarrow$ & Brier $\downarrow$ & NLL $\downarrow$
+           & Refer. & Acc$_{\text{ret}}$ \\
+    \midrule
+    Determinista (MAP)
+       & $0{,}9923$ & $\mathbf{0{,}9547}$ & $\mathbf{0{,}9631}$
+       & $0{,}0064$ & $\mathbf{0{,}0283}$ & $0{,}1065$
+       & --- & --- \\
+    MC Dropout
+       & $0{,}9923$ & $0{,}9519$ & $0{,}9606$
+       & $0{,}0049$ & $0{,}0302$ & $0{,}1094$
+       & $15{,}07\%$ & $0{,}9904$ \\
+    Laplace (LL-KFAC)
+       & $\mathbf{0{,}9924}$ & $\mathbf{0{,}9547}$ & $\mathbf{0{,}9631}$
+       & $\mathbf{0{,}0047}$ & $\mathbf{0{,}0283}$ & $\mathbf{0{,}1048}$
+       & $15{,}08\%$ & $\mathbf{0{,}9913}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Discriminaci\'on: empate t\'ecnico.}
+Los tres modelos obtienen AUC-ROC $\approx 0{,}9923$, F1 $\approx 0{,}95$
+y \emph{accuracy} $\approx 0{,}96$, con diferencias confinadas a la
+cuarta cifra decimal. Este resultado es consistente con la teor\'ia: el
+ranking inducido por las probabilidades predictivas est\'a determinado
+esencialmente por el extractor de caracter\'isticas (ResNet18 con MAP),
+y el tratamiento bayesiano \emph{post-hoc} en Laplace no modifica ese
+ranking al promediar logits sobre perturbaciones gaussianas centradas
+en $\boldsymbol{\omega}^{*}$. MC Dropout, aunque entrena una cabeza
+ligeramente distinta, llega a un MAP de calidad comparable. La curva
+ROC, que se incluye en el Ap\'endice~\ref{app:roc}, es visualmente
+indistinguible para los tres modelos, lo cual apoya esta lectura. La
+conclusi\'on operativa es que \emph{la incorporaci\'on de incertidumbre
+no se paga con p\'erdida de poder discriminativo}: los m\'etodos
+bayesianos no degradan el modelo subyacente, simplemente lo enriquecen.
+
+\paragraph{Calibraci\'on: la ganancia bayesiana es sistem\'atica.}
+La Figura~\ref{fig:reliability} muestra los diagramas de fiabilidad de
+los tres modelos.
+En el modelo determinista se aprecia una ligera \emph{subconfianza}
+en los bins centrales ($\hat c \in [0{,}55,\,0{,}80]$): la exactitud
+emp\'irica es sistem\'aticamente inferior a la confianza declarada, lo
+que produce $\mathrm{ECE}=0{,}0064$. La aproximaci\'on de Laplace
+corrige parcialmente este sesgo acercando las barras a la diagonal en
+ese rango y reduciendo el ECE a $0{,}0047$ ---una mejora relativa del
+$26\%$. MC Dropout queda en una posici\'on intermedia
+($\mathrm{ECE}=0{,}0049$) con una ligera sobrecorrecci\'on en los bins
+m\'as bajos. El Brier score sigue el mismo patr\'on: Laplace iguala al
+determinista ($0{,}0283$) mientras que MC Dropout incurre una
+penalizaci\'on leve ($0{,}0302$) atribuible a la varianza inyectada por
+el muestreo con dropout. La NLL, regla de puntuaci\'on estrictamente
+propia~\citep{gneiting2007strictly}, selecciona Laplace como mejor
+modelo probabil\'istico global ($0{,}1048$ frente a $0{,}1065$ del
+MAP). En conjunto, los tres modelos est\'an ya un orden de magnitud
+por debajo del objetivo no funcional $\mathrm{ECE}<0{,}05$
+establecido en la Secci\'on~\ref{sec:requirements}, pero la mejora
+relativa de Laplace es consistente y coherente con la expectativa
+te\'orica: la posterior gaussiana, al promediar sobre la incertidumbre
+en los pesos, regulariza las probabilidades extremas hacia valores
+menos sobreconfiados.
+
+\begin{figure}[t]
+  \centering
+  % >>> AQU\'I VA: reliability_diagrams.png <<<
+  \includegraphics[width=\linewidth]{../figures/reliability_diagrams.png}
+  \caption{Diagramas de fiabilidad sobre el conjunto de test
+           ($15$ bins uniformes sobre la confianza). La diagonal
+           discontinua representa calibraci\'on perfecta.
+           \textbf{Izquierda}: modelo determinista (MAP),
+           $\mathrm{ECE}=0.0064$.
+           \textbf{Centro}: MC Dropout, $\mathrm{ECE}=0.0049$.
+           \textbf{Derecha}: aproximaci\'on de Laplace con GGN de
+           \'ultima capa factorizado por Kronecker,
+           $\mathrm{ECE}=0.0047$.
+           Los tres modelos est\'an ya un orden de magnitud por debajo
+           del objetivo $\mathrm{ECE}<0.05$; Laplace corrige en
+           mayor medida la subconfianza sistem\'atica del MAP en los
+           bins intermedios.}
+  \label{fig:reliability}
+\end{figure}
+
+\paragraph{Triaje: ganancias operativas significativas.}
+Las dos \'ultimas columnas de la Tabla~\ref{tab:main} adelantan la
+explotaci\'on operativa: derivando el $15\%$ de los casos m\'as
+inciertos, la exactitud sobre el subconjunto retenido sube de
+$96{,}31\%$ (MAP completo, sin triaje) a $99{,}13\%$ (Laplace) y
+$99{,}04\%$ (MC Dropout). Discutimos esta ganancia en detalle en la
+Secci\'on~\ref{sec:triage}.
+
+\subsection{Comportamiento de la incertidumbre}
+\label{sec:uncertainty-behaviour}
+
+Las m\'etricas agregadas de calibraci\'on son condici\'on necesaria
+pero no suficiente para que una BNN sea \emph{\'util}: el modelo debe
+adem\'as producir incertidumbres m\'as altas cuando se equivoca. Para
+verificarlo, evaluamos la descomposici\'on de la
+Secci\'on~\ref{sec:unc-decomp} separando las predicciones correctas
+de las incorrectas.
+
+\paragraph{La incertidumbre epist\'emica separa aciertos y fallos.}
+Para Laplace, la incertidumbre epist\'emica media sobre predicciones
+incorrectas ($1{,}62\!\times\!10^{-4}$) es $13{,}07\times$ superior a
+la media sobre las correctas ($1{,}24\!\times\!10^{-5}$). Para MC
+Dropout, el mismo ratio es de $7{,}19\times$. Ambos m\'etodos cumplen,
+por tanto, la propiedad operativa de \emph{saber cu\'ando no saben},
+con Laplace ofreciendo una separaci\'on notablemente m\'as n\'itida.
+La Figura~\ref{fig:unc-hist} visualiza esta diferencia para Laplace:
+las predicciones correctas (en verde) se concentran masivamente en el
+primer bin ($u_{\mathrm{epi}}\!\to\!0$), mientras que las incorrectas
+(en rojo) se distribuyen sobre un rango mucho m\'as amplio. El patr\'on
+cualitativo se reproduce en MC Dropout
+(Ap\'endice~\ref{app:unc-mcdropout}), aunque con menor separaci\'on
+relativa. Esta diferencia es consistente con el argumento te\'orico de
+la Secci\'on~\ref{sec:local-vs-vi}: el Hessiano GGN captura la
+curvatura exacta del log-posterior en $\boldsymbol{\omega}^{*}$, lo que
+se traduce en un estimador de varianza m\'as fiel que las
+perturbaciones de dropout, cuya magnitud no se aprende.
+
+\begin{figure}[t]
+  \centering
+  % >>> AQU\'I VA: uncertainty_hist_laplace.png <<<
+  \includegraphics[width=\linewidth]{../figures/uncertainty_hist_laplace.png}
+  \caption{Distribuciones de incertidumbre epist\'emica (izquierda) y
+           aleat\'orica (derecha) producidas por la aproximaci\'on de
+           Laplace, separando predicciones correctas (verde,
+           $n=31\,787$) e incorrectas (rojo, $n=1\,217$). La
+           incertidumbre epist\'emica de las predicciones incorrectas
+           es, en promedio, $13{,}07\times$ mayor que la de las
+           correctas; para MC Dropout el factor an\'alogo es
+           $7{,}19\times$ (v\'ease Ap\'endice~\ref{app:unc-mcdropout}).
+           La incertidumbre aleat\'orica, acotada por
+           $0{,}25=\max p(1\!-\!p)$ para Bernoulli, satura en los casos
+           morfol\'ogicamente ambiguos y es dos \'ordenes de magnitud
+           mayor que la epist\'emica en escala absoluta.}
+  \label{fig:unc-hist}
+\end{figure}
+
+\paragraph{La incertidumbre aleat\'orica es dominante en magnitud.}
+El panel derecho de la Figura~\ref{fig:unc-hist} revela un contraste
+esperable: $u_{\mathrm{ale}}$ alcanza valores cercanos a su m\'aximo
+te\'orico $p(1\!-\!p)=0{,}25$ para las muestras m\'as ambiguas,
+mientras que $u_{\mathrm{epi}}$ se concentra en $[0,\,10^{-3}]$. Dos
+\'ordenes de magnitud de diferencia. Esta asimetr\'ia es coherente con
+un r\'egimen de alto volumen de datos: tras entrenar con $\sim\!154\,000$
+parches, el posterior sobre los pesos est\'a fuertemente concentrado,
+de modo que la incertidumbre residual procede casi \'integramente del
+ruido intr\'inseco de los datos ---ambig\"uedad real entre clases, no
+ignorancia del modelo. Esto justifica \emph{a posteriori} la decisi\'on
+de emplear $u_{\mathrm{epi}}$ y no $u_{\mathrm{tot}}$ como se\~nal de
+triaje: derivar a revisi\'on humana las muestras con alta incertidumbre
+aleat\'orica no aporta valor, puesto que ning\'un modelo entrenado con
+m\'as datos podr\'ia resolverlas. Esta distinci\'on, que en muchos
+trabajos se trata como un detalle t\'ecnico, tiene una traducci\'on
+cl\'inica directa: una incertidumbre aleat\'orica alta indica
+\emph{ambig\"uedad real del caso}, no \emph{ignorancia del sistema}.
+
+\subsection{Triaje cl\'inico: \emph{selective classification}}
+\label{sec:triage}
+
+El valor de negocio del enfoque bayesiano se operacionaliza a trav\'es
+de la pol\'itica de derivaci\'on descrita en la
+Secci\'on~\ref{sec:unc-decomp}. Fijamos el umbral $\tau_{u}$ en el
+percentil $85$ de la distribuci\'on de $u_{\mathrm{epi}}$ sobre test,
+de modo que el $15\%$ de los casos m\'as inciertos se derivan a
+revisi\'on por un pat\'ologo y el $85\%$ restante queda cubierto por
+la recomendaci\'on autom\'atica del modelo.\footnote{La elecci\'on
+por percentil, en lugar de un valor absoluto de $\tau_{u}$, garantiza
+que ambos m\'etodos operen a la misma \emph{tasa de derivaci\'on} y
+permite comparar la calidad del triaje en condiciones id\'enticas.
+Las escalas absolutas de $u_{\mathrm{epi}}$ difieren en dos
+\'ordenes de magnitud entre m\'etodos
+(percentil 85: $5{,}5\!\times\!10^{-6}$ para Laplace,
+$1{,}1\!\times\!10^{-4}$ para MC Dropout), por lo que un umbral
+absoluto compartido carecer\'ia de sentido.}
+
+\paragraph{Reducci\'on de falsos negativos por un factor de $3\text{--}4$.}
+Sobre el $85\%$ de los casos clasificados autom\'aticamente, la
+exactitud sube de $96{,}31\%$ (MAP sin triaje) a $99{,}13\%$ (Laplace)
+y $99{,}04\%$ (MC Dropout) ---v\'ease Tabla~\ref{tab:main}. M\'as
+relevante cl\'inicamente, la \emph{tasa de falsos negativos} ---cr\'itica
+en oncolog\'ia--- cae de $\sim 4{,}2\%$ a $\sim 1{,}1\%$ con Laplace y
+$\sim 1{,}0\%$ con MC Dropout. En t\'erminos absolutos, sobre los
+$11\,487$ positivos del $85\%$ no derivado para Laplace, solo $134$
+quedan sin detectar; el modelo MAP, sin pol\'itica de triaje, falla
+$\sim 575$ positivos sobre la totalidad del test.
+Es decir, por cada $10$ falsos negativos que emite el sistema
+determinista, la pol\'itica bayesiana permite identificar $7\text{--}8$
+de ellos \emph{antes} de que lleguen al usuario final, derivando los
+casos correspondientes a revisi\'on humana. Este resultado cuantifica
+directamente el \emph{valor de negocio} del enfoque probabil\'istico
+demandado por el enunciado.
+
+\paragraph{Curvas de retenci\'on: equivalencia operativa.}
+La Figura~\ref{fig:retention} muestra las curvas de retenci\'on
+(\emph{accuracy vs.\ coverage}) para ambos m\'etodos bayesianos. Ambas
+son mon\'otonas crecientes al reducir la cobertura, lo cual es la
+condici\'on necesaria para que una pol\'itica de selective
+classification tenga sentido: rechazar los casos con mayor
+$u_{\mathrm{epi}}$ mejora consistentemente la exactitud sobre los
+retenidos. La forma de la curva es pr\'acticamente id\'entica entre
+Laplace y MC Dropout: reteniendo el $\sim\!80\%$ de las muestras m\'as
+confiables se alcanza $\sim\!99{,}5\%$ de exactitud; reteniendo el
+$\sim\!30\%$, supera $99{,}9\%$. La elecci\'on del percentil de corte
+se convierte as\'i en un par\'ametro operativo que arbitra entre
+\emph{cobertura} (volumen de casos autom\'aticos) y \emph{precisi\'on}
+(calidad sobre ese volumen), sin compromisos relevantes entre los dos
+m\'etodos. Esta equivalencia es importante porque sugiere que la
+diferencia te\'orica entre ambos enfoques (curvatura del log-posterior
+\emph{vs.}\ familia variacional Bernoulli) se diluye una vez se
+calibran los umbrales por percentiles.
+
+\begin{figure}[t]
+  \centering
+  % >>> AQU\'I VA: figura compuesta a partir de
+  %     uncertainty_vs_error_laplace.png + uncertainty_vs_error_mc_dropout.png
+  %     (preferiblemente recortando solo el panel derecho de cada uno,
+  %      es decir, las dos curvas de retenci\'on) <<<
+  \includegraphics[width=\linewidth]{../figures/uncertainty_vs_error_laplace.png}
+  \caption{Curvas de retenci\'on (\emph{accuracy vs.\ coverage}) para
+           Laplace (izquierda) y MC Dropout (derecha). En cada punto,
+           el modelo conserva la fracci\'on indicada de las muestras
+           m\'as confiables seg\'un $u_{\mathrm{epi}}$ y la exactitud
+           se eval\'ua \'unicamente sobre ese subconjunto. La l\'inea
+           discontinua horizontal marca la exactitud del dataset
+           completo ($0{,}963$ para Laplace, $0{,}961$ para MC Dropout).
+           La monoton\'ia confirma que la incertidumbre epist\'emica
+           rankea correctamente los errores; ambos m\'etodos exhiben
+           curvas casi indistinguibles a pesar de diferir en dos
+           \'ordenes de magnitud en la escala absoluta de
+           $u_{\mathrm{epi}}$.}
+  \label{fig:retention}
+\end{figure}
+
+\paragraph{Inspecci\'on cualitativa de los casos m\'as inciertos.}
+La inspecci\'on visual del \emph{top-}$12$ de muestras con mayor
+incertidumbre epist\'emica
+(Ap\'endice~\ref{app:high-unc}) confirma que la se\~nal apunta a
+casos genuinamente ambiguos desde el punto de vista histol\'ogico:
+zonas con mezcla de tejido tumoral y estroma, parches con artefactos
+de digitalizaci\'on o recortes pr\'oximos al borde de la regi\'on
+central de $32\!\times\!32$ donde se define la etiqueta. Las
+probabilidades predichas en estos casos se concentran muy cerca de la
+frontera de decisi\'on ($p\in[0{,}33,\,0{,}74]$ para Laplace; rango
+similar para MC Dropout), comportamiento cl\'inicamente coherente: el
+sistema expresa mayor incertidumbre justo donde un pat\'ologo humano
+tambi\'en dudar\'ia. La exactitud sobre el top-$20$ es del $65\%$
+(Laplace) y del $45\%$ (MC Dropout) frente a $96{,}3\%$ global ---es
+decir, ese $0{,}06\%$ del test concentra una densidad de errores muy
+superior a la base.
+
+\subsection{Eficiencia computacional}
+\label{sec:efficiency-results}
+
+La Tabla~\ref{tab:main} y los tiempos reportados en
+\texttt{final\_results.json} se complementan con la
+Tabla~\ref{tab:efficiency}, que asla el coste de inferencia.
+MC Dropout es el m\'etodo m\'as costoso, como era previsible: sus
+$T=50$ pasadas estoc\'asticas por batch incrementan el coste en
+$\sim\!2{,}7\times$ frente al determinista. La aproximaci\'on de
+Laplace, en cambio, resulta \emph{m\'as r\'apida} que la inferencia
+determinista est\'andar en nuestra implementaci\'on. Este resultado,
+contraintuitivo a primera vista, tiene una explicaci\'on simple: la
+factorizaci\'on de \'ultima capa permite reutilizar el forward del
+extractor de caracter\'isticas y realizar las
+$\mathrm{LAPLACE\_SAMPLES}=100$ muestras \'unicamente sobre el bloque
+final de $1\,026$ par\'ametros; la librer\'ia \texttt{laplace-torch}
+aprovecha adem\'as una ruta GLM con link \emph{probit} que resuelve la
+predictiva en forma cerrada para muchos casos, evitando el muestreo
+expl\'icito.
+
+\begin{table}[t]
+  \caption{Tiempo de inferencia sobre el conjunto de test completo
+           ($N_{\mathrm{test}}\!=\!33\,004$). Hardware y versiones de
+           librer\'ias documentados en el repositorio.}
+  \label{tab:efficiency}
+  \centering
+  \small
+  \begin{tabular}{lcc}
+    \toprule
+    Modelo             & Tiempo total (s) & Relativo al MAP \\
+    \midrule
+    Determinista (MAP) & $103{,}3$        & $1{,}00\times$ \\
+    MC Dropout         & $281{,}8$        & $2{,}73\times$ \\
+    Laplace (LL-KFAC)  & $\mathbf{47{,}0}$ & $\mathbf{0{,}46\times}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+En conjunto, los tres requisitos no funcionales establecidos en la
+Secci\'on~\ref{sec:requirements} se cumplen. La calibraci\'on queda
+un orden de magnitud por debajo del objetivo
+($\mathrm{ECE}=0{,}0047\!\ll\!0{,}05$); la latencia de Laplace
+---$47$~s para $33\,004$ muestras, equivalente a $\sim\!700$ parches
+por segundo--- es compatible con la integraci\'on en visores
+patol\'ogicos; y el consumo de memoria, dominado por las activaciones
+del backbone durante el \emph{fit} de Laplace, no excede el de una
+estaci\'on cl\'inica con GPU de gama media.
+
+\subsection{S\'intesis}
+\label{sec:synthesis}
+
+Los resultados sostienen tres conclusiones principales.
+\textbf{Primero}, en este r\'egimen de datos abundantes y modelo bien
+ajustado, los tres m\'etodos son indistinguibles en discriminaci\'on,
+con AUC $\approx\!0{,}9923$. \textbf{Segundo}, la calibraci\'on
+probabil\'istica s\'i diferencia los m\'etodos: Laplace gana en ECE,
+Brier y NLL, con MC Dropout en una posici\'on intermedia. Esta
+ganancia tiene fundamento te\'orico ---el Hessiano GGN captura la
+curvatura local del log-posterior con mayor fidelidad que las
+perturbaciones fijas de dropout--- y se manifiesta de forma especialmente
+n\'itida en la separaci\'on entre incertidumbres de aciertos y fallos
+($13{,}07\times$ frente a $7{,}19\times$). \textbf{Tercero}, la
+explotaci\'on operativa mediante triaje convierte esa calidad
+probabil\'istica en una reducci\'on tangible de falsos negativos
+($\sim\!4\times$) sobre el conjunto autom\'aticamente clasificado,
+con un coste computacional menor que el de la inferencia determinista
+en el caso de Laplace. La elecci\'on entre ambos m\'etodos en un
+despliegue real depender\'ia, por tanto, m\'as de consideraciones
+t\'ecnicas (Laplace es \emph{post-hoc} y m\'as r\'apido; MC Dropout
+exige dropout desde el entrenamiento) que de la calidad de la se\~nal
+de incertidumbre, que es comparable a tasa de derivaci\'on fija.
+
+% ============================================================================
+%  FIN de la Secci\'on 6.
+% ============================================================================
+
+
+
+% ============================================================================
+%  AP\'ENDICE
+%  -----------------------------------------------------------------
+%  Coloca este bloque DESPU\'ES de \bibliography{...}, ya que las
+%  p\'aginas del ap\'endice no cuentan para el l\'imite de 9 p\'aginas
+%  (instrucci\'on expl\'icita del enunciado).
+% ============================================================================
+
+
+
 \bibliographystyle{unsrtnat}
 \bibliography{references}
 
@@ -744,6 +1118,126 @@ AUC-ROC, \emph{accuracy}, F1-score con umbral $0.5$, \emph{precision} y \emph{re
   \end{tabular}
 \end{table}
 
+
+\section{Material complementario}
+\label{app:supplementary}
+
+\subsection{Curvas de entrenamiento}
+\label{app:training}
+
+La Figura~\ref{fig:training} muestra la evoluci\'on de la p\'erdida y
+del AUC en entrenamiento y validaci\'on para los dos modelos
+entrenados. En ambos casos la p\'erdida de validaci\'on sigue
+mon\'otonamente a la de entrenamiento sin el cruce caracter\'istico
+del sobreajuste, y el AUC de validaci\'on alcanza la meseta cerca del
+final de las $25$ \'epocas. El \emph{early stopping} configurado con
+paciencia $5$ no se activa, lo cual indica que el horizonte de $25$
+\'epocas est\'a bien dimensionado para esta combinaci\'on de
+arquitectura y dataset.
+
+\begin{figure}[h]
+  \centering
+  % >>> AQU\'I VA: training_deterministic.png <<<
+  \includegraphics[width=0.95\linewidth]{../figures/training_deterministic.png}\\[2pt]
+  % >>> AQU\'I VA: training_mc_dropout.png <<<
+  \includegraphics[width=0.95\linewidth]{../figures/training_mc_dropout.png}
+  \caption{Curvas de entrenamiento.
+           \textbf{Arriba}: modelo determinista (MAP).
+           \textbf{Abajo}: modelo MC Dropout. En cada par,
+           p\'erdida de \emph{cross-entropy} (izquierda) y AUC-ROC
+           (derecha) sobre entrenamiento (azul) y validaci\'on (rojo).}
+  \label{fig:training}
+\end{figure}
+
+\subsection{Curvas ROC}
+\label{app:roc}
+
+La Figura~\ref{fig:roc} muestra las curvas ROC de los tres modelos
+sobre el conjunto de test. La superposici\'on visual confirma la
+coincidencia num\'erica reportada en la Tabla~\ref{tab:main}: las
+diferencias en AUC se sit\'uan en la cuarta cifra decimal y no son
+visibles a esta escala.
+
+\begin{figure}[h]
+  \centering
+  % >>> AQU\'I VA: roc_curves.png <<<
+  \includegraphics[width=0.7\linewidth]{../figures/roc_curves.png}
+  \caption{Curvas ROC sobre el conjunto de test. Las tres curvas son
+           visualmente indistinguibles, con AUC $\approx\!0{,}9923$
+           para los tres m\'etodos.}
+  \label{fig:roc}
+\end{figure}
+
+\subsection{Distribuci\'on de incertidumbre para MC Dropout}
+\label{app:unc-mcdropout}
+
+La Figura~\ref{fig:unc-mcd} reproduce la Figura~\ref{fig:unc-hist} para
+MC Dropout. El patr\'on cualitativo es id\'entico ---las predicciones
+correctas se concentran en $u_{\mathrm{epi}}\!\to\!0$, las incorrectas
+se distribuyen sobre un soporte m\'as amplio--- pero la separaci\'on es
+menor en t\'erminos relativos: el ratio entre las medias de
+$u_{\mathrm{epi}}$ sobre incorrectas y correctas es $7{,}19\times$ para
+MC Dropout frente a $13{,}07\times$ para Laplace.
+
+\begin{figure}[h]
+  \centering
+  % >>> AQU\'I VA: uncertainty_hist_mc_dropout.png <<<
+  \includegraphics[width=\linewidth]{../figures/uncertainty_hist_mc_dropout.png}
+  \caption{Distribuciones de incertidumbre epist\'emica (izquierda) y
+           aleat\'orica (derecha) producidas por MC Dropout, separando
+           predicciones correctas (verde, $n=31\,703$) e incorrectas
+           (rojo, $n=1\,301$).}
+  \label{fig:unc-mcd}
+\end{figure}
+
+\subsection{Muestras con mayor incertidumbre epist\'emica}
+\label{app:high-unc}
+
+Las Figuras~\ref{fig:high-unc-laplace} y~\ref{fig:high-unc-mcd}
+muestran el \emph{top-}$12$ de parches de test ordenados por
+$u_{\mathrm{epi}}$ decreciente para Laplace y MC Dropout
+respectivamente. En ambos casos, las probabilidades predichas se
+concentran cerca de $0{,}5$ y los parches presentan caracter\'isticas
+visualmente ambiguas: mezcla de morfolog\'ias, artefactos o presencia
+de tejido cuya etiqueta depende cr\'iticamente de la regi\'on central
+de $32\!\times\!32$. Esta inspecci\'on cualitativa apoya la interpretaci\'on
+de la Secci\'on~\ref{sec:triage}: los casos con $u_{\mathrm{epi}}$ alta
+son aqu\'ellos en los que un pat\'ologo humano tambi\'en dudar\'ia,
+de modo que su derivaci\'on a revisi\'on tiene sentido cl\'inico.
+
+\begin{figure}[h]
+  \centering
+  % >>> AQU\'I VA: high_uncertainty_samples_laplace.png <<<
+  \includegraphics[width=0.95\linewidth]{../figures/high_uncertainty_samples_laplace.png}
+  \caption{Top-$12$ de parches de test ordenados por incertidumbre
+           epist\'emica decreciente seg\'un Laplace. Cada cuadro
+           indica la etiqueta real, la probabilidad predicha y el
+           valor de $u_{\mathrm{epi}}$.}
+  \label{fig:high-unc-laplace}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  % >>> AQU\'I VA: high_uncertainty_samples_mc_dropout.png <<<
+  \includegraphics[width=0.95\linewidth]{../figures/high_uncertainty_samples_mc_dropout.png}
+  \caption{Top-$12$ de parches de test ordenados por incertidumbre
+           epist\'emica decreciente seg\'un MC Dropout. Misma codificaci\'on
+           que la Figura~\ref{fig:high-unc-laplace}.}
+  \label{fig:high-unc-mcd}
+\end{figure}
+
+\subsection{Tabla extendida de hiperpar\'ametros}
+\label{app:hyperparams}
+
+V\'ease la Tabla~\ref{tab:hyper} en la Secci\'on~\ref{sec:hp} del cuerpo
+principal para la lista completa de hiperpar\'ametros del estudio y su
+interpretaci\'on bayesiana. Todos los valores se mantienen fijos a lo
+largo de los experimentos; el c\'odigo (\texttt{config.py}) permite
+reproducirlos con una \'unica semilla aleatoria.
+
+% ============================================================================
+%  FIN del ap\'endice.
+% ============================================================================
 
 
 
