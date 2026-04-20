@@ -153,73 +153,16 @@ probabilidades mejor calibradas y una se\~nal de incertidumbre \'util para
 la toma de decisiones.
 
 En este trabajo comparamos emp\'iricamente tres modelos sobre el dataset
-\emph{Histopathologic Cancer Detection}, todos ellos construidos sobre una
+\emph{Histopathologic Cancer Detection}, construidos sobre una
 misma ResNet18 preentrenada. El primero es un clasificador determinista
 entrenado como estimador m\'aximo a posteriori (MAP); el segundo, una
-aproximaci\'on de Laplace \emph{post-hoc} aplicada a la \'ultima capa; y el
-tercero, una variante con MC Dropout para inferencia aproximada por Monte
+aproximaci\'on de Laplace \citep{daxberger2021laplace}, \emph{post-hoc}, aplicada a la \'ultima capa; y el
+tercero, una variante con MC Dropout \citep{gal2016dropout} para inferencia aproximada por Monte
 Carlo. La comparaci\'on se realiza en t\'erminos de discriminaci\'on,
 calibraci\'on probabil\'istica y utilidad para triaje basada en
 incertidumbre. Adem\'as, analizamos el coste computacional de cada enfoque
 para valorar su posible despliegue y acompa\~namos el estudio con c\'odigo
 reproducible y una demo interactiva.
- 
-\subsection{Motivaci\'on cl\'inica y valor de negocio}
-\label{sec:motiv}
-
-La detecci\'on autom\'atica de células tumorales en parches de tejido
-histopatol\'ogico es uno de los casos de uso m\'as consolidados del
-aprendizaje profundo en medicina. Los modelos convolucionales actuales
-alcanzan sistem\'aticamente un AUC superior a $0{,}95$ sobre benchmarks
-p\'ublicos, lo que ha motivado su integraci\'on progresiva en flujos de
-cribado asistido por ordenador. Sin embargo, este rendimiento
-oculta un problema estructural: un clasificador determinista emite
-una probabilidad puntual $\hat p(y{=}1\mid\mathbf{x})$ sin ninguna
-cuantificaci\'on de la fiabilidad de esa estimaci\'on. Un caso
-morfol\'ogicamente ambiguo y un caso protot\'ipico pueden recibir la
-misma probabilidad sin que el sistema distinga entre ellos.
- 
-Esta limitación es grave en dominios donde el coste de un falso negativo es desproporcionado y crítico,
-como puede ser la oncolog\'ia. En este contexto, el
-enfoque bayesiano aporta una soluci\'on pr\'actica: en lugar de aprender
-un \'unico conjunto de pesos $\boldsymbol{\omega}^{*}$, el objetivo es
-inferir una distribuci\'on posterior $p(\boldsymbol{\omega}\mid\mathcal{D})$
-sobre la que se marginaliza al predecir. La varianza de dicha distribuci\'on
-predictiva posibilita la toma de decisiones diferenciadas: cuando la
-incertidumbre supera un umbral
-preconfigurado $\tau_{u}$, la muestra se deriva a revisi\'on por un
-pat\'ologo.
-
-Esta regla operativa es la traducci\'on directa del valor de
-negocio de estos modelos: no se trata solo de mejorar la precisi\'on global, sino de
-identificar casos inciertos para que un experto (humano) los revise, reduciendo as\'i el riesgo de falsos negativos sin sobrecargar al pat\'ologo con casos t\'ipicos.
-En un despliegue real, las m\'etricas online asociadas ser\'ian
-la tasa de derivaci\'on a revisi\'on humana, la
-frecuencia con la que el pat\'ologo rechaza la recomendaci\'on
-del modelo teniendo visibilidad de la incertidumbre (\emph{user trust}),
-y la \emph{reducci\'on de falsos negativos} de la combinaci\'on modelo-pat\'ologo frente a un pat\'ologo sin apoyo algor\'itmico.
-
-
-\subsection{Objetivos y contribuciones}
- 
-Este trabajo persigue tres objetivos concretos.
-Primero, comparar cuantitativamente el rendimiento predictivo y la
-calibraci\'on de dos m\'etodos de inferencia aproximada ampliamente
-utilizados en la literatura: la aproximaci\'on de Laplace
-\citep{daxberger2021laplace}
-y Monte Carlo (MC) Dropout
-\citep{gal2016dropout}. En ambos casos, se parte de un mismo clasificador fijo (ResNet18 preentrenada) para aislar el efecto del m\'etodo probabil\'istico.
-% empleando una arquitectura troncal fija (ResNet18) para aislar el efecto
-% del m\'etodo probabil\'istico.
-Segundo, analizar y aplicar la descomposici\'on de la incertidumbre
-predictiva en sus componentes aleatoria y epist\'emica para definir
-una pol\'itica de triaje.
-Tercero, estudiar los recursos computacionales de
-cada enfoque (tiempo de entrenamiento, latencia de inferencia, memoria)
-para contemplar un posible despliegue. El c\'odigo, los pesos entrenados
-y una demostraci\'on interactiva en Streamlit están disponibles en este
-\href{https://github.com/victoriagaarcia/ProbabilisticCancerPrediction}{repositorio}, reproducible con semilla aleatoria fija.
-
 
 % FORMULACIÓN DEL PROBLEMA
 
@@ -248,7 +191,7 @@ es una red neuronal con pesos $\boldsymbol{\omega}\in\mathbb{R}^{P}$.
 Aunque el problema es binario, tomamos la parametrizaci\'on \textit{softmax}
 de dos dimensiones por cuestiones de compatibilidad con la librer\'ia
 \texttt{laplace-torch} (que asume salida categ\'orica) y con el mecanismo de 
-descomposición de la incertidumbre explicado en la SECCION4!. %Section \ref{sec:uncertainty}.
+descomposición de la incertidumbre explicado en la sección \ref{sec:uncertainty-method}.
  
 Asumimos un prior gaussiano isotr\'opico sobre los pesos,
 \begin{equation}
@@ -288,60 +231,15 @@ razonable para hardware convencional. Estos requisitos condicionan la
 elecci\'on del subconjunto de pesos y de la estructura del Hessiano en la
 aproximaci\'on de Laplace.
 
-\subsection{Requisitos del sistema}
-\label{sec:requirements}
-
-\paragraph{Requisitos funcionales.}
-El sistema debe (i)~emitir, para cada entrada, una distribuci\'on
-predictiva $p(y\mid\mathbf{x})$ en lugar de una estimaci\'on puntual;
-(ii)~descomponer la incertidumbre en sus componentes
-aleatoria (inherente al ruido de los datos, irreducible)
-y epist\'emica (asociada al conocimiento limitado del modelo,
-reducible con m\'as datos); y
-(iii)~producir derivar una muestra a revisi\'on humana cuando la
-incertidumbre epist\'emica de su predicci\'on supere el umbral
-preconfigurado
-$\tau_{u}$. %(\texttt{UNCERTAINTY\_THRESHOLD}$=0.05$).
- 
-\paragraph{Requisitos no funcionales.}
-Establecemos como objetivos cuantitativos
-(i)~un \emph{Expected Calibration Error} (ECE) por debajo de
-$0.05$;
-(ii)~una latencia de inferencia por imagen que sea compatible con la posible
-integraci\'on en una interfaz de un programa médico; y
-(iii)~un consumo de memoria que permita la ejecuci\'on en hardware de una cl\'inica u hospital estándar.
-Estos requisitos condicionan, como veremos en la SECCION2! % Secci\'on~\ref{sec:laplace},
-la elecci\'on del subconjunto de pesos sobre el que aplicar Laplace y la
-estructura adoptada para el Hessiano.
 
 \subsection{Selecci\'on de m\'etodos}
 \label{sec:methods-tradeoff}
  
 La literatura ofrece un rango amplio de m\'etodos de inferencia
-aproximada para redes neuronales bayesianas (BNNs). La Tabla~\ref{tab:methods}
+aproximada para redes neuronales bayesianas (BNNs). La Tabla~\ref{tab:methods} (Anexo~\ref{sec:appendix-methods})
 resume los factores que más comprometen la selección, la cual debe ponderar el coste
 de entrenamiento, el coste de inferencia, la necesidad o no de
 reentrenamiento y la fidelidad de la aproximaci\'on al posterior.
- 
-\begin{table}[t]
-  \caption{Compromisos entre m\'etodos de inferencia aproximada en BNN.
-           $T$ denota el n\'umero de muestras en inferencia y $M$ el
-           tama\~no de un \textit{ensemble.}}
-  \label{tab:methods}
-  \centering
-  \small
-  \begin{tabular}{lllll}
-    \toprule
-    M\'etodo & Coste entren. & Coste inf. & Reentren. & Cobertura del posterior \\
-    \midrule
-    Laplace (\emph{post-hoc})      & $1\times$ {\scriptsize + 1 \emph{fit}} & $T$ & No        & Local, unimodal \\
-    MC Dropout                     & $1\times$                              & $T$ & S\'i      & Local, unimodal \\
-    Inferencia variacional (MFVI)  & $\sim\!2\times$                         & $T$ & S\'i      & Unimodal \\
-    Deep Ensembles                 & $M\times$                               & $M$ & S\'i      & Multimodal \\
-    MCMC (SGLD, HMC)               & $\gg\!1\times$                          & $T$ & S\'i      & Asint\'oticamente exacta \\
-    \bottomrule
-  \end{tabular}
-\end{table}
 
 Tras analizar los modelos estudiados, se optó por seleccionar la aproximación de Laplace
 y el enfoque de MC Dropout para compararlos en este estudio. El primero es un método \emph{post-hoc} que aprovecha la curvatura real del \emph{loss} en el punto MAP, 
@@ -385,6 +283,12 @@ m\'ultiples pasadas estoc\'asticas en inferencia. En ambos casos, la
 predicci\'on final se obtiene promediando m\'ultiples realizaciones del
 modelo, pero difieren en la forma en que aproximan
 \(p(\boldsymbol{\omega}\mid\mathcal{D})\).
+La diferencia reside en la definición de $p(\boldsymbol{\omega})$ y en el procedimiento para obtener las muestras $\boldsymbol{\omega}_{t}$,
+tal y como se explicará en la sección~\ref{sec:method}.
+
+% Sección 4: Metodología
+\section{Metodolog\'ia}
+\label{sec:method}
 
 \subsection{Arquitectura troncal}
 \label{sec:backbone}
@@ -817,8 +721,29 @@ AUC-ROC, \emph{accuracy}, F1-score con umbral $0.5$, \emph{precision} y \emph{re
 
 \appendix
 
-\section{Technical Appendices and Supplementary Material}
-Technical appendices with additional results, figures, graphs and proofs may be submitted with the paper submission before the full submission deadline (see above), or as a separate PDF in the ZIP file below before the supplementary material deadline. There is no page limit for the technical appendices.
+\section{Estudio de diferentes m\'etodos de inferencia aproximada}
+\label{sec:appendix-methods}
+
+\begin{table}[h!]
+  \caption{Compromisos entre m\'etodos de inferencia aproximada en BNN.
+           $T$ denota el n\'umero de muestras en inferencia y $M$ el
+           tama\~no de un \textit{ensemble.}}
+  \label{tab:methods}
+  \centering
+  \small
+  \begin{tabular}{lllll}
+    \toprule
+    M\'etodo & Coste entren. & Coste inf. & Reentren. & Cobertura del posterior \\
+    \midrule
+    Laplace (\emph{post-hoc})      & $1\times$ {\scriptsize + 1 \emph{fit}} & $T$ & No        & Local, unimodal \\
+    MC Dropout                     & $1\times$                              & $T$ & S\'i      & Local, unimodal \\
+    Inferencia variacional (MFVI)  & $\sim\!2\times$                         & $T$ & S\'i      & Unimodal \\
+    Deep Ensembles                 & $M\times$                               & $M$ & S\'i      & Multimodal \\
+    MCMC (SGLD, HMC)               & $\gg\!1\times$                          & $T$ & S\'i      & Asint\'oticamente exacta \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
 
 
 
