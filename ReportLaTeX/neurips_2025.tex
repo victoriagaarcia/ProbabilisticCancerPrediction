@@ -128,6 +128,41 @@
 
 \section{Introducci\'on}
 \label{sec:intro}
+
+La detecci\'on autom\'atica de tejido tumoral en parches histopatol\'ogicos
+es uno de los casos de uso m\'as consolidados del aprendizaje profundo en
+medicina. Sin embargo, en este contexto no basta con obtener una alta
+precisi\'on agregada: una probabilidad puntual
+$\hat p(y=1\mid \mathbf{x})$ no informa de la fiabilidad de la
+predicci\'on y puede asignar niveles de confianza similares a casos
+protot\'ipicos y a muestras morfol\'ogicamente ambiguas. Esta limitaci\'on
+es especialmente relevante en oncolog\'ia, donde el coste de un falso
+negativo es elevado y una predicci\'on incorrecta puede tener consecuencias
+cl\'inicas importantes.
+
+El enfoque bayesiano ofrece una forma natural de abordar este problema.
+En lugar de producir una \'unica estimaci\'on de los pesos del modelo,
+permite razonar en t\'erminos de distribuciones predictivas y, con ello,
+cuantificar incertidumbre. Esta informaci\'on puede utilizarse de forma
+operativa en una pol\'itica de triaje: las muestras con mayor
+incertidumbre epist\'emica se derivan a revisi\'on humana, mientras que
+los casos m\'as confiables pueden servir como apoyo al cribado. Desde esta
+perspectiva, el valor pr\'actico de los modelos probabil\'isticos no se
+reduce a mejorar ligeramente la discriminaci\'on, sino a producir
+probabilidades mejor calibradas y una se\~nal de incertidumbre \'util para
+la toma de decisiones.
+
+En este trabajo comparamos emp\'iricamente tres modelos sobre el dataset
+\emph{Histopathologic Cancer Detection}, todos ellos construidos sobre una
+misma ResNet18 preentrenada. El primero es un clasificador determinista
+entrenado como estimador m\'aximo a posteriori (MAP); el segundo, una
+aproximaci\'on de Laplace \emph{post-hoc} aplicada a la \'ultima capa; y el
+tercero, una variante con MC Dropout para inferencia aproximada por Monte
+Carlo. La comparaci\'on se realiza en t\'erminos de discriminaci\'on,
+calibraci\'on probabil\'istica y utilidad para triaje basada en
+incertidumbre. Adem\'as, analizamos el coste computacional de cada enfoque
+para valorar su posible despliegue y acompa\~namos el estudio con c\'odigo
+reproducible y una demo interactiva.
  
 \subsection{Motivaci\'on cl\'inica y valor de negocio}
 \label{sec:motiv}
@@ -238,6 +273,20 @@ $p(\boldsymbol{\omega}\mid\mathcal{D})$ ni la integral~\eqref{eq:predictive}
 admiten forma cerrada. La metodolog\'ia de este trabajo se centra
 en c\'omo aproximar esa integral manteniendo el mayor n\'umero posible
 de garant\'ias bayesianas a un coste computacional aceptable.
+
+\subsection{Requisitos del sistema}
+\label{sec:requirements}
+\paragraph{Requisitos funcionales.}
+El sistema debe proporcionar, para cada imagen, una distribuci\'on
+predictiva $p(y\mid \mathbf{x})$, estimar incertidumbre aleat\'orica y
+epist\'emica, y permitir una regla de derivaci\'on a revisi\'on humana en
+funci\'on de la incertidumbre epist\'emica.
+\paragraph{Requisitos no funcionales.}
+Buscamos buena calibraci\'on probabil\'istica, latencia de inferencia
+compatible con un flujo asistido de revisi\'on y un consumo de memoria
+razonable para hardware convencional. Estos requisitos condicionan la
+elecci\'on del subconjunto de pesos y de la estructura del Hessiano en la
+aproximaci\'on de Laplace.
 
 \subsection{Requisitos del sistema}
 \label{sec:requirements}
