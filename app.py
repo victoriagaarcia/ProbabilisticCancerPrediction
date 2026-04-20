@@ -99,10 +99,10 @@ def load_uncertainty_thresholds() -> dict:
 def select_reference_model(results: dict) -> str:
     """
     Usa el mejor modelo bayesiano disponible para interpretación.
-    Priorizamos MC Dropout sobre Laplace por estabilidad empírica
+    Priorizamos Laplace sobre MC Dropout por estabilidad empírica
     en este proyecto.
     """
-    for name in ["MC Dropout", "Laplace", "Deterministic"]:
+    for name in ["Laplace", "MC Dropout", "Deterministic"]:
         if name in results:
             return name
     return list(results.keys())[0]

@@ -51,7 +51,7 @@ MC_SAMPLES       = 50   # Forward passes (para ambos modelos)
 
 # Umbrales de respaldo si no se encuentra results/uncertainty_thresholds.json
 UNCERTAINTY_THRESHOLD_MC_FALLBACK = 0.00010697950347093865
-UNCERTAINTY_THRESHOLD_LA_FALLBACK = 5.562150818150258e-06
+UNCERTAINTY_THRESHOLD_LA_FALLBACK = 5.506529305421282e-06
 
 
 # =============================================================================
