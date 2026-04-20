@@ -8,26 +8,26 @@
   "total_images_processed": 33004,
   "mc_dropout": {
     "counts": {
-      "CANCER": 11841,
-      "UNCERTAIN": 4972,
-      "BENIGN": 16191
+      "CANCER": 11836,
+      "UNCERTAIN": 4962,
+      "BENIGN": 16206
     },
     "percentages": {
-      "BENIGN": 49.06,
-      "CANCER": 35.88,
-      "UNCERTAIN": 15.06
+      "BENIGN": 49.1,
+      "CANCER": 35.86,
+      "UNCERTAIN": 15.03
     }
   },
   "laplace": {
     "counts": {
-      "CANCER": 11466,
-      "UNCERTAIN": 4957,
-      "BENIGN": 16581
+      "CANCER": 11470,
+      "UNCERTAIN": 4973,
+      "BENIGN": 16561
     },
     "percentages": {
-      "BENIGN": 50.24,
-      "CANCER": 34.74,
-      "UNCERTAIN": 15.02
+      "BENIGN": 50.18,
+      "CANCER": 34.75,
+      "UNCERTAIN": 15.07
     }
   },
   "saved_images": {
@@ -48,14 +48,14 @@
     "UNCERTAIN": [
       "uncertain_01_gt0_mc_la.png",
       "uncertain_02_gt0_mc_la.png",
-      "uncertain_03_gt0_mc.png",
+      "uncertain_03_gt0_mc_la.png",
       "uncertain_04_gt0_mc_la.png",
-      "uncertain_05_gt0_mc_la.png"
+      "uncertain_05_gt1_mc_la.png"
     ]
   },
   "agreement_in_saved": {
     "BENIGN": 4,
     "CANCER": 5,
-    "UNCERTAIN": 4
+    "UNCERTAIN": 5
   }
 }
