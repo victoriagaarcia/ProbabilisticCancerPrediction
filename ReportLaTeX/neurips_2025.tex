@@ -359,40 +359,6 @@ La diferencia reside en la definición de $p(\boldsymbol{\omega})$ y en el proce
 tal y como se explicará en la SECCION 4!.
 
 % Sección 4: Metodología
-
-\section{Configuración experimental}
-
-
-
-\section{General formatting instructions}
-\label{gen_inst}
-
-
-The text must be confined within a rectangle 5.5~inches (33~picas) wide and
-9~inches (54~picas) long. The left margin is 1.5~inch (9~picas).  Use 10~point
-type with a vertical spacing (leading) of 11~points.  Times New Roman is the
-preferred typeface throughout, and will be selected for you by default.
-Paragraphs are separated by \nicefrac{1}{2}~line space (5.5 points), with no
-indentation.
-
-
-The paper title should be 17~point, initial caps/lower case, bold, centered
-between two horizontal rules. The top rule should be 4~points thick and the
-bottom rule should be 1~point thick. Allow \nicefrac{1}{4}~inch space above and
-below the title to rules. All pages should start at 1~inch (6~picas) from the
-top of the page.
-
-
-For the final version, authors' names are set in boldface, and each name is
-centered above the corresponding address. The lead author's name is to be listed
-first (left-most), and the co-authors' names (if different address) are set to
-follow. If there is only one co-author, list both author and co-author side by
-side.
-
-
-Please pay special attention to the instructions in Section \ref{others}
-regarding figures, tables, acknowledgments, and references.
-
 \section{Metodolog\'ia}
 \label{sec:method}
 
@@ -689,12 +655,12 @@ u_{\mathrm{epi}}(\mathbf{x}) + u_{\mathrm{ale}}(\mathbf{x}).
 \label{eq:tot}
 \end{align}
 La componente epist\'emica mide el desacuerdo entre muestras del
-posterior aproximado; la aleat\'orica captura la incertidumbre intr\'inseca
+posterior aproximado; la aleatoria captura la incertidumbre intr\'inseca
 de una Bernoulli condicional.
 
 En Laplace usamos una variante coherente con la evaluaci\'on final del
 sistema. La incertidumbre epist\'emica se estima igualmente mediante
-$\mathrm{Var}_{t}[p_t(\mathbf{x})]$, pero la componente aleat\'orica se
+$\mathrm{Var}_{t}[p_t(\mathbf{x})]$, pero la componente aleatoria se
 calcula a partir de la probabilidad media final obtenida por la regla
 GLM-probit:
 \begin{equation}
@@ -727,90 +693,108 @@ incertidumbre epist\'emica en validaci\'on para cada aproximaci\'on.
 Esto evita comparar en una misma escala magnitudes cuya calibraci\'on
 num\'erica depende del mecanismo de inferencia empleado.
 
-\subsection{Footnotes}
+\section{Configuraci\'on experimental}
+\label{sec:setup}
+ 
+\subsection{Dataset y preprocesado}
+\label{sec:dataset}
+
+El dataset empleado es \href{https://www.kaggle.com/c/histopathologic-cancer-detection}{\emph{Histopathologic Cancer Detection}}, 
+compuesto por imágenes de $96\times 96$ píxeles extraídas de cortes histológicos teñidos con hematoxilina-eosina (método de tinción estándar en este área).
+La etiqueta que acompaña a cada imagen indica si existe tejido tumoral en la región central de $32\times 32$. 
+Este dataset, al igual muchos otros que contienen datos clínicos reales, presenta algunas deficiencias como
+desbalanceo de clases (en este caso moderado, habiendo aproximadamente un 40\% de muestras positivas, i.e., con tejido tumoral),
+variabilidad de tinción entre laboratorios, artefactos al digitalizar las muestras, etcétera.
+
+\paragraph{Divisi\'on.}
+Separamos el conjunto en $70\%$ entrenamiento, $15\%$ validaci\'on y
+$15\%$ test mediante divisi\'on estratificada
+(con el argumento \texttt{stratify=label} en la función \texttt{train\_test\_split}), preservando la
+proporci\'on de clases en cada partici\'on.
+La semilla aleatoria se fija (\texttt{RANDOM\_SEED=42}) en
+todas las librer\'ias y se configura el backend de PyTorch con
+\texttt{cudnn.deterministic=True} para
+garantizar reproducibilidad hasta el nivel de las convoluciones.
 
 
-Footnotes should be used sparingly.  If you do require a footnote, indicate
-footnotes with a number\footnote{Sample of the first footnote.} in the
-text. Place the footnotes at the bottom of the page on which they appear.
-Precede the footnote with a horizontal rule of 2~inches (12~picas).
+\paragraph{Aumento de datos.}
+Durante el entrenamiento aplicamos \textit{flips} horizontales y verticales
+aleatorios, rotaciones de hasta $20^{\circ}$ y perturbaciones de
+brillo, contraste, saturaci\'on y matiz (\texttt{ColorJitter}). %con par\'ametros $0{,}2/0{,}2/0{,}1/0{,}05$).
+La invarianza a la orientaci\'on se justifica por la ausencia de una
+direcci\'on can\'onica en im\'agenes histol\'ogicas; 
+las perturbaciones
+crom\'aticas representan la variabilidad de tinci\'on entre laboratorios,
+que es una de las principales fuentes de \emph{distribution shift} en
+este dominio.
+En validaci\'on y test aplicamos \'unicamente la normalizaci\'on con
+las estad\'isticas de ImageNet, 
+% $\boldsymbol{\mu}=(0{,}485,0{,}456,0{,}406)$,
+% $\boldsymbol{\sigma}=(0{,}229,0{,}224,0{,}225)$,
+para mantener la coherencia con la inicializaci\'on del \emph{backbone}.
 
-
-Note that footnotes are properly typeset \emph{after} punctuation
-marks.\footnote{As in this example.}
-
-
-\subsection{Figures}
-
-
-\begin{figure}
+\subsection{Hiperpar\'ametros}
+\label{sec:hp}
+ 
+La Tabla~\ref{tab:hyper} resume los hiperpar\'ametros empleados y su interpretación probabilística.
+ 
+\begin{table}[t]
+  \caption{Hiperpar\'ametros y su interpretaci\'on bayesiana.}
+  \label{tab:hyper}
   \centering
-  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
-  \caption{Sample figure caption.}
-\end{figure}
-
-
-All artwork must be neat, clean, and legible. Lines should be dark enough for
-purposes of reproduction. The figure number and caption always appear after the
-figure. Place one line space before the figure caption and one line space after
-the figure. The figure caption should be lower case (except for first word and
-proper nouns); figures are numbered consecutively.
-
-
-You may use color figures.  However, it is best for the figure captions and the
-paper body to be legible if the paper is printed in either black/white or in
-color.
-
-
-\subsection{Tables}
-
-
-All tables must be centered, neat, clean and legible.  The table number and
-title always appear before the table.  See Table~\ref{sample-table}.
-
-
-Place one line space before the table title, one line space after the
-table title, and one line space after the table. The table title must
-be lower case (except for first word and proper nouns); tables are
-numbered consecutively.
-
-
-Note that publication-quality tables \emph{do not contain vertical rules.} We
-strongly suggest the use of the \verb+booktabs+ package, which allows for
-typesetting high-quality, professional tables:
-\begin{center}
-  \url{https://www.ctan.org/pkg/booktabs}
-\end{center}
-This package was used to typeset Table~\ref{sample-table}.
-
-
-\begin{table}
-  \caption{Sample table title}
-  \label{sample-table}
-  \centering
-  \begin{tabular}{lll}
+  \small
+  \begin{tabular}{llll}
     \toprule
-    \multicolumn{2}{c}{Part}                   \\
-    \cmidrule(r){1-2}
-    Name     & Description     & Size ($\mu$m) \\
+    Componente & Hiperpar\'ametro & Valor & Interpretaci\'on \\
     \midrule
-    Dendrite & Input terminal  & $\sim$100     \\
-    Axon     & Output terminal & $\sim$10      \\
-    Soma     & Cell body       & up to $10^6$  \\
+    Entrenamiento & \texttt{LEARNING\_RATE}        & $10^{-4}$     & Tasa de aprendizaje \\
+    Entrenamiento & \texttt{BATCH\_SIZE}           & $64$          & Tama\~no del lote \\
+    Entrenamiento & \texttt{NUM\_EPOCHS}           & $25$ (m\'ax.) & Con \emph{early stopping} \\
+    Entrenamiento & \texttt{PATIENCE}              & $5$           & Paciencia sobre AUC de validaci\'on \\
+    Prior         & \texttt{WEIGHT\_DECAY} $=\lambda$ & $10^{-4}$ & Precisi\'on del prior $p(\omega)=\mathcal{N}(\mathbf{0},\lambda^{-1}\mathbf{I})$ \\
+    MC Dropout    & \texttt{DROPOUT\_RATE} $=p$   & $0{,}3$       & Familia variacional Bernoulli \\
+    MC Dropout    & \texttt{MC\_SAMPLES} $=T$     & $50$          & Muestras de~\eqref{eq:predictive-mc} \\
+    Laplace       & \texttt{LAPLACE\_SUBSET}      & \texttt{last\_layer} & Tractabilidad de $\boldsymbol{\Sigma}$ \\
+    Laplace       & \texttt{LAPLACE\_HESSIAN}     & \texttt{kron} & Factorizaci\'on KFAC del Hessiano \\
+    Laplace       & \texttt{LAPLACE\_SAMPLES}     & $100$         & Muestras de pesos en inferencia \\
+    Laplace       & Precisi\'on del prior         & Optimizada    & Verosimilitud marginal~\eqref{eq:marglik} \\
+    Triaje        & \texttt{UNCERTAINTY\_THRESHOLD} & $0{,}05$    & Umbral $\tau_{u}$ para derivaci\'on \\
+    Calibraci\'on & \texttt{ECE\_NUM\_BINS}       & $15$          & Granularidad del diagrama de fiabilidad \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\subsection{Math}
-Note that display math in bare TeX commands will not create correct line numbers for submission. Please use LaTeX (or AMSTeX) commands for unnumbered display math. (You really shouldn't be using \$\$ anyway; see \url{https://tex.stackexchange.com/questions/503/why-is-preferable-to} and \url{https://tex.stackexchange.com/questions/40492/what-are-the-differences-between-align-equation-and-displaymath} for more information.)
+\subsection{Protocolo de evaluaci\'on}
+\label{sec:eval-protocol}
+ 
+\paragraph{M\'etricas \emph{offline} de discriminaci\'on.}
+AUC-ROC, \emph{accuracy}, F1-score con umbral $0.5$, \emph{precision} y \emph{recall} calculadas sobre el conjunto de test.
 
-\subsection{Final instructions}
+\paragraph{M\'etricas \emph{offline} de calibraci\'on.}
 
-Do not change any aspects of the formatting parameters in the style files.  In
-particular, do not modify the width or length of the rectangle the text should
-fit into, and do not change font sizes (except perhaps in the
-\textbf{References} section; see below). Please note that pages should be
-numbered.
+\begin{itemize}
+  \item \textbf{Log-verosimilitud negativa}:
+        Penaliza simult\'aneamente errores y sobreconfianza.
+        $NLL=-\tfrac{1}{N_{\mathrm{test}}}\sum_{i}\log p(y_{i}\mid\mathbf{x}_{i},\mathcal{D})$.
+  \item \textbf{Brier score}:
+        Combina en una \'unica cifra calibraci\'on y resoluci\'on.
+        $\mathrm{BS}=\tfrac{1}{N_{\mathrm{test}}}\sum_{i}(p_{i}-y_{i})^{2}$.
+  \item \textbf{Expected Calibration Error} (ECE): para cada muestra
+        sea $\hat y$ la clase predicha y $\hat c=p(\hat y\mid\mathbf{x})$
+        la confianza asociada. Agrupando las predicciones en $M=15$
+        bins $\{B_{m}\}_{m=1}^{M}$ de ancho uniforme sobre la confianza,
+        \begin{equation}
+          \mathrm{ECE}
+          \;=\;\sum_{m=1}^{M}\frac{|B_{m}|}{N_{\mathrm{test}}}
+          \Bigl|\,\mathrm{acc}(B_{m})-\mathrm{conf}(B_{m})\,\Bigr|,
+          \label{eq:ece}
+        \end{equation}
+        donde
+        $\mathrm{acc}(B_{m})=\tfrac{1}{|B_{m}|}\!\sum_{i\in B_{m}}\mathbf{1}[\hat y_{i}=y_{i}]$
+        y
+        $\mathrm{conf}(B_{m})=\tfrac{1}{|B_{m}|}\!\sum_{i\in B_{m}}\hat c_{i}$.
+        Un modelo perfectamente calibrado satisface $\mathrm{ECE}=0$.
+\end{itemize}
 
 
 \section{Preparing PDF files}
