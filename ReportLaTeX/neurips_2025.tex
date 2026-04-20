@@ -177,7 +177,7 @@ y Monte Carlo (MC) Dropout
 % empleando una arquitectura troncal fija (ResNet18) para aislar el efecto
 % del m\'etodo probabil\'istico.
 Segundo, analizar y aplicar la descomposici\'on de la incertidumbre
-predictiva en sus componentes aleat\'orica y epist\'emica para definir
+predictiva en sus componentes aleatoria y epist\'emica para definir
 una pol\'itica de triaje.
 Tercero, estudiar los recursos computacionales de
 cada enfoque (tiempo de entrenamiento, latencia de inferencia, memoria)
@@ -246,7 +246,7 @@ de garant\'ias bayesianas a un coste computacional aceptable.
 El sistema debe (i)~emitir, para cada entrada, una distribuci\'on
 predictiva $p(y\mid\mathbf{x})$ en lugar de una estimaci\'on puntual;
 (ii)~descomponer la incertidumbre en sus componentes
-aleat\'orica (inherente al ruido de los datos, irreducible)
+aleatoria (inherente al ruido de los datos, irreducible)
 y epist\'emica (asociada al conocimiento limitado del modelo,
 reducible con m\'as datos); y
 (iii)~producir derivar una muestra a revisi\'on humana cuando la
@@ -294,20 +294,75 @@ reentrenamiento y la fidelidad de la aproximaci\'on al posterior.
   \end{tabular}
 \end{table}
 
-SEGUIR DESDE AQUÍ
- 
-Seleccionamos \textbf{Laplace} y \textbf{MC Dropout} como representantes
-complementarios del espectro. El primero es \emph{post-hoc} y
-\emph{principled} ---aprovecha la curvatura real del \emph{loss} en el
-MAP--- mientras que el segundo es trivial de implementar sobre cualquier
-arquitectura que ya incluya dropout.
-Ambos comparten la misma arquitectura troncal y, en el caso de Laplace, el
-mismo punto MAP, lo que permite atribuir las diferencias observadas casi
-exclusivamente al mecanismo de cuantificaci\'on de incertidumbre.
-Deep Ensembles y MCMC quedan fuera del alcance por coste computacional;
-MFVI se descarta por exigir una reimplementaci\'on completa del
-entrenamiento sin ventaja te\'orica clara sobre Laplace en t\'erminos de
-fidelidad local al posterior.
+Tras analizar los modelos estudiados, se optó por seleccionar la aproximación de Laplace
+y el enfoque de MC Dropout para compararlos en este estudio. El primero es un método \emph{post-hoc} que aprovecha la curvatura real del \emph{loss} en el punto MAP, 
+y el segundo es trivial de implementar sobre cualquier arquitectura que ya incluya \emph{dropout}. Ambos comparten la misma arquitectura troncal y, en el caso de Laplace, el mismo punto MAP, lo que permite atribuir las diferencias observadas casi exclusivamente al mecanismo de cuantificación de incertidumbre.
+Deep Ensembles y MCMC quedan fuera del alcance por coste computacional; y MFVI se descarta porque requeriría una reimplementación completa del entrenamiento sin asegurar una ventaja teórica sobre Laplace en términos de fidelidad del posterior.
+
+
+\section{Antecedentes}
+\label{sec:background}
+
+\subsection{Del estimador MAP al posterior}
+\label{sec:map}
+
+El entrenamiento est\'andar de una red neuronal con pérdida \emph{cross-entropy}
+y regularizaci\'on L2 admite una interpretaci\'on bayesiana exacta.
+La funci\'on de p\'erdida que minimiza nuestro \texttt{Trainer} es
+\begin{equation}
+  \mathcal{L}(\boldsymbol{\omega})
+  \;=\;
+  -\sum_{i=1}^{N}\log p(y_{i}\mid\mathbf{x}_{i},\boldsymbol{\omega})
+  \;+\;\tfrac{\lambda}{2}\lVert\boldsymbol{\omega}\rVert_{2}^{2},
+  \label{eq:loss}
+\end{equation}
+donde el segundo t\'ermino coincide, salvo una constante , con
+$-\log p(\boldsymbol{\omega})$ bajo el prior \eqref{eq:prior}.
+Por ende, el m\'inimo de~\eqref{eq:loss} coincide con el
+estimador MAP,
+\begin{equation}
+  \boldsymbol{\omega}^{*}
+  \;=\;
+  \arg\min_{\boldsymbol{\omega}}\mathcal{L}(\boldsymbol{\omega})
+  \;=\;
+  \arg\max_{\boldsymbol{\omega}}\!\bigl[
+     \log p(\mathcal{D}\mid\boldsymbol{\omega})+\log p(\boldsymbol{\omega})
+  \bigr].
+  \label{eq:map}
+\end{equation}
+En concreto, el hiperparametro $\lambda$ controla la precisi\'on del prior y, por tanto, el grado de regularizaci\'on. 
+La equivalencia mostrada en \eqref{eq:map} es clave: demuestra que el MAP obtenido por Adam con \emph{weight decay}
+no es un punto de partida arbitrario, sino que es el \emph{mode} (pico) del posterior bajo el priori adoptado, 
+y por tanto, el punto  alrededor del cual Laplace construye su aproximaci\'on gaussiana. %().
+
+\subsection{Aproximaci\'on local vs.\ aproximaci\'on variacional}
+\label{sec:local-vs-vi}
+
+Las dos estrategias implementadas responden a filosof\'ias distintas
+para aproximar $p(\boldsymbol{\omega}\mid\mathcal{D})$.
+La aproximaci\'on de Laplace es una t\'ecnica de optimizaci\'on
+local: fija una gaussiana centrada en $\boldsymbol{\omega}^{*}$ y
+ajusta su matriz de covarianza a la curvatura (Hessiano) del log-posterior en ese punto. 
+Por el contrario, MC Dropout es una técnica particular de inferencia variacional cuya familia $q(\boldsymbol{\omega})$ es de tipo 
+mezcla de Bernoulli~\cite{gal2016dropout}. En este caso, el entrenamiento estándar con \emph{dropout} y \emph{weight-decay} ya maximiza el ELBO asociado a esa familia, y las
+pasadas estoc\'asticas en inferencia corresponden a muestras del posterior aproximado $q(\boldsymbol{\omega})$.
+
+Ambos enfoques producen un procedimiento para muestrear pesos y aproximar la integral~\eqref{eq:predictive} mediante Monte Carlo,
+\begin{equation}
+  p(y^{\star}\mid\mathbf{x}^{\star},\mathcal{D})
+  \;\approx\;
+  \frac{1}{T}\sum_{t=1}^{T}p(y^{\star}\mid\mathbf{x}^{\star},\boldsymbol{\omega}_{t}),
+  \label{eq:predictive-mc}
+\end{equation}
+
+La diferencia reside en la definición de $p(\boldsymbol{\omega})$ y en el procedimiento para obtener las muestras $\boldsymbol{\omega}_{t}$,
+tal y como se explicará en la SECCION 4!.
+
+% Sección 4: Metodología
+
+\section{Configuración experimental}
+
+
 
 \section{General formatting instructions}
 \label{gen_inst}
