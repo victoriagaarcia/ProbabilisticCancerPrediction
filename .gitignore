@@ -7,3 +7,11 @@
 /models_firstversion
 /models_secondversion
 uv.lock
+
+# latex files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
