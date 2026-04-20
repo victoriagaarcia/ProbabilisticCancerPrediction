@@ -80,6 +80,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def safe_sqrt(x: float) -> float:
+    return float(np.sqrt(max(float(x), 0.0)))
+
+
+def load_uncertainty_thresholds() -> dict:
+    """
+    Carga thresholds calibrados y percentiles de incertidumbre generados
+    en evaluate.py.
+    """
+    path = RESULTS_DIR / "uncertainty_thresholds.json"
+    if path.exists():
+        with open(path, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def select_reference_model(results: dict) -> str:
+    """
+    Usa el mejor modelo bayesiano disponible para interpretación.
+    Priorizamos MC Dropout sobre Laplace por estabilidad empírica
+    en este proyecto.
+    """
+    for name in ["MC Dropout", "Laplace", "Deterministic"]:
+        if name in results:
+            return name
+    return list(results.keys())[0]
 
 # =============================================================================
 # Load training data for Laplace fitting
@@ -275,7 +301,7 @@ def create_probability_gauge(prob, title="Probability"):
 
 
 def create_uncertainty_visualization(results):
-    """Create comparison visualization of model uncertainties."""
+    """Create comparison visualization of predictive uncertainty."""
     n_models = len(results)
     fig, axes = plt.subplots(1, n_models, figsize=(4 * n_models, 4))
 
@@ -285,46 +311,55 @@ def create_uncertainty_visualization(results):
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
 
     for ax, (model_name, result), color in zip(axes, results.items(), colors):
-        prob = result['probability']
-        uncertainty = result.get('epistemic', 0.0) # + result.get('aleatoric', 0.0)
+        prob = float(result['probability'])
+        epi_var = float(result.get('epistemic', 0.0))
+        ale_var = float(result.get('aleatoric', 0.0))
+        total_var = max(epi_var + ale_var, 0.0)
+        total_std = safe_sqrt(total_var)
 
-        ax.bar([0], [prob], color=color, alpha=0.7, width=0.5)
-        if uncertainty > 0:
-            ax.errorbar([0], [prob], yerr=[uncertainty], color='black',
-                        capsize=10, capthick=2, linewidth=2)
+        ax.bar([0], [prob], color=color, alpha=0.75, width=0.5)
+
+        # Mostramos desviación típica total, no varianza cruda
+        if total_std > 0:
+            ax.errorbar(
+                [0], [prob], yerr=[total_std],
+                color='black', capsize=10, capthick=2, linewidth=2
+            )
 
         ax.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5)
         ax.set_ylim(0, 1)
         ax.set_xlim(-0.5, 0.5)
         ax.set_xticks([])
         ax.set_ylabel('Cancer Probability')
-        ax.set_title(f'{model_name}\nP={prob:.3f} ± {uncertainty:.3f}', fontsize=12)
+        ax.set_title(
+            f'{model_name}\nP={prob:.3f} ± {total_std:.3f}',
+            fontsize=12
+        )
 
     plt.tight_layout()
     return fig
 
-def uncertainty_color(uncertainty):
-    """Get color class based on uncertainty level."""
-    if uncertainty < 0.1:
+def uncertainty_color(total_std, p85_std, p95_std):
+    """Get color class based on calibrated total predictive std."""
+    if total_std < p85_std:
         return "uncertainty-low"
-    elif uncertainty < 0.2:
+    elif total_std < p95_std:
         return "uncertainty-medium"
     else:
         return "uncertainty-high"
 
 
-def uncertainty_interpretation(uncertainty):
-    """Get human-readable interpretation of uncertainty."""
-    if uncertainty < 0.05:
-        return "Very confident prediction"
-    elif uncertainty < 0.1:
-        return "Confident prediction"
-    elif uncertainty < 0.15:
-        return "Moderate uncertainty - review recommended"
-    elif uncertainty < 0.2:
-        return "High uncertainty - expert review needed"
+def uncertainty_interpretation(total_std, p85_std, p95_std):
+    """
+    Interpreta la incertidumbre en términos relativos al modelo,
+    no con umbrales absolutos arbitrarios.
+    """
+    if total_std < p85_std:
+        return "Low predictive uncertainty for this model"
+    elif total_std < p95_std:
+        return "Elevated uncertainty — human review advisable"
     else:
-        return "Very high uncertainty - requires careful examination"
+        return "High predictive uncertainty — refer for expert review"
 
 
 # =============================================================================
@@ -367,6 +402,7 @@ def main():
     
     # Load models
     models = load_models()
+    thresholds = load_uncertainty_thresholds()
     
     if models is None:
         st.error("""
@@ -404,9 +440,10 @@ def main():
             if st.button("🔍 Analyze Image", type="primary", use_container_width=True):
                 with st.spinner("Running inference..."):
                     from metrics import triage_decision
+
                     results = {}
 
-                    # Deterministic — sin incertidumbre
+                    # Deterministic
                     prob_det, _ = predict_deterministic(models['deterministic'], image_tensor)
                     results['Deterministic'] = {
                         'probability': prob_det,
@@ -419,11 +456,12 @@ def main():
                         prob_lap, epi_lap, ale_lap = predict_laplace(
                             models['laplace'], image_tensor, n_samples=laplace_samples
                         )
+                        lap_thr = thresholds.get("laplace", {}).get("epistemic_threshold", None)
                         results['Laplace'] = {
                             'probability': prob_lap,
                             'epistemic': epi_lap,
                             'aleatoric': ale_lap,
-                            'triage': triage_decision(prob_lap, epi_lap),
+                            'triage': triage_decision(prob_lap, epi_lap, uncertainty_threshold=lap_thr) if lap_thr is not None else None,
                         }
 
                     # MC Dropout
@@ -431,11 +469,12 @@ def main():
                         prob_mc, epi_mc, ale_mc = predict_mc_dropout(
                             models['mc_dropout'], image_tensor, n_samples=mc_samples
                         )
+                        mc_thr = thresholds.get("mc_dropout", {}).get("epistemic_threshold", None)
                         results['MC Dropout'] = {
                             'probability': prob_mc,
                             'epistemic': epi_mc,
                             'aleatoric': ale_mc,
-                            'triage': triage_decision(prob_mc, epi_mc),
+                            'triage': triage_decision(prob_mc, epi_mc, uncertainty_threshold=mc_thr) if mc_thr is not None else None,
                         }
 
                     st.session_state['results'] = results
@@ -457,75 +496,85 @@ def main():
             st.markdown("### Detailed Predictions")
             
             cols = st.columns(len(results))
-            
+
             for col, (model_name, result) in zip(cols, results.items()):
                 with col:
-                    prob = result['probability']
-                    # epi  = result.get('epistemic', 0.0)
-                    if model_name == 'Deterministic':
-                        epi = 0.0
-                    else:
-                        epi = result['epistemic']
-                        # ale  = result.get('aleatoric', 0.0)
-                        ale = result['aleatoric']
+                    prob = float(result['probability'])
+                    epi_var = float(result.get('epistemic', 0.0))
+                    ale_var = float(result.get('aleatoric', 0.0))
+                    total_var = max(epi_var + ale_var, 0.0)
+                    epi_std = safe_sqrt(epi_var)
+                    total_std = safe_sqrt(total_var)
 
                     st.markdown(f"**{model_name}**")
 
                     prediction = "Cancer" if prob > 0.5 else "Normal"
                     pred_class = "prediction-positive" if prob > 0.5 else "prediction-negative"
-                    st.markdown(f"Prediction: <span class='{pred_class}'>{prediction}</span>",
-                                unsafe_allow_html=True)
+                    st.markdown(
+                        f"Prediction: <span class='{pred_class}'>{prediction}</span>",
+                        unsafe_allow_html=True
+                    )
 
                     st.metric("Probability", f"{prob:.1%}")
 
-                    if epi > 0:
-                        st.markdown(f"**Epistemic uncertainty:** {epi:.4f}")
-                        st.markdown(f"**Aleatoric uncertainty:** {ale:.4f}")
+                    if model_name != "Deterministic":
+                        st.markdown(f"**Epistemic variance:** {epi_var:.6f}")
+                        st.markdown(f"**Epistemic std:** {epi_std:.4f}")
+                        st.markdown(f"**Aleatoric variance:** {ale_var:.6f}")
+                        st.markdown(f"**Total predictive std:** {total_std:.4f}")
 
-                    # Mostrar decisión de triaje si existe
-                    if 'triage' in result:
+                    if result.get('triage') is not None:
                         t = result['triage']
-                        st.markdown(f"**Clinical decision:**")
+                        st.markdown("**Clinical decision:**")
                         st.markdown(t['action'])
             
             # Clinical interpretation
             st.markdown("### 🏥 Clinical Interpretation")
-            
-            # Use Laplace uncertainty for interpretation
-            # laplace_unc = results['Laplace']['uncertainty']
-            # ref_prob = results['Laplace']['probability']
-            # interpretation = uncertainty_interpretation(laplace_unc)
 
-            # Use best available model for interpretation (prefer MC Dropout, then Laplace)
-            if 'MC Dropout' in results:
-                ref_model = 'MC Dropout'
-            elif 'Laplace' in results:
-                ref_model = 'Laplace'
+            ref_model = select_reference_model(results)
+            ref_result = results[ref_model]
+
+            ref_prob = float(ref_result['probability'])
+            ref_epi = float(ref_result.get('epistemic', 0.0))
+            ref_ale = float(ref_result.get('aleatoric', 0.0))
+            ref_total_std = safe_sqrt(ref_epi + ref_ale)
+
+            # Percentiles calibrados para interpretar incertidumbre
+            if ref_model == "MC Dropout":
+                model_key = "mc_dropout"
+            elif ref_model == "Laplace":
+                model_key = "laplace"
             else:
-                ref_model = 'Deterministic'
+                model_key = None
 
-            ref_unc = results[ref_model].get('epistemic', 0.0) # + results[ref_model].get('aleatoric', 0.0)
-            ref_prob = results[ref_model]['probability']
+            if model_key is not None and model_key in thresholds:
+                p85_std = thresholds[model_key].get("total_std_p85", 0.0)
+                p95_std = thresholds[model_key].get("total_std_p95", p85_std)
+            else:
+                p85_std = 0.02
+                p95_std = 0.05
 
-            interpretation = uncertainty_interpretation(ref_unc)
-            
+            interpretation = uncertainty_interpretation(ref_total_std, p85_std, p95_std)
+
             if ref_prob > 0.5:
                 st.warning(f"""
                 **Potential Malignancy Detected** (P = {ref_prob:.1%})
-                
+
+                Reference model: **{ref_model}**
+
                 {interpretation}
-                
-                {"⚠️ High uncertainty suggests this case should be reviewed by a pathologist." 
-                 if ref_unc > 0.15 else ""}
+
+                {'⚠️ Review by a pathologist is recommended.' if ref_total_std >= p85_std else ''}
                 """)
             else:
                 st.success(f"""
                 **No Malignancy Detected** (P = {ref_prob:.1%})
-                
+
+                Reference model: **{ref_model}**
+
                 {interpretation}
-                
-                {"ℹ️ Consider additional review due to uncertainty in prediction." 
-                 if ref_unc > 0.05 else ""}
+
+                {'ℹ️ Consider human review if this case is clinically high-risk.' if ref_total_std >= p85_std else ''}
                 """)
         else:
             st.info("Upload an image and click 'Analyze' to see predictions")

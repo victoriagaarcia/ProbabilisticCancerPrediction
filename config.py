@@ -110,8 +110,15 @@ RANDOM_SEED = 42
 # =============================================================================
 # Umbral de incertidumbre epistémica a partir del cual la predicción se deriva
 # a revisión humana (patólogo).
-UNCERTAINTY_THRESHOLD = 0.05
+TRIAGE_PERCENTILE = 85
+# UNCERTAINTY_THRESHOLD = 0.05
+
+# Umbral probabilistico para decidir clase una vez el caso NO es derivado a revisión humana
 CONFIDENCE_THRESHOLD = 0.5
+
+# Interpretacion practica en la app: mostramos desviacion tipica (sqrt(var)) porque la varianza 
+# suele ser muy pequeña y visualmente parece 0
+DISPLAY_UNCERTAINTY = 'std'  # 'var' o 'std'
 
 def set_seed(seed: int = RANDOM_SEED):
     """

@@ -25,7 +25,9 @@ import json
 import matplotlib.pyplot as plt
 import time
 
-from config import DEVICE, MC_SAMPLES, FIGURES_DIR, RESULTS_DIR
+from config import (DEVICE, MC_SAMPLES, 
+                    FIGURES_DIR, RESULTS_DIR, TRIAGE_PERCENTILE
+                    )
 from models import DeterministicCNN, MCDropoutCNN, LaplaceWrapper
 from metrics import (
     compute_all_metrics,
@@ -34,7 +36,8 @@ from metrics import (
     plot_uncertainty_histogram,
     compare_models_metrics,
     print_metrics_table,
-    compute_triage_metrics
+    compute_triage_metrics,
+    calibrate_uncertainty_threshold
 )
 
 
@@ -308,79 +311,116 @@ def full_evaluation(
     det_model: DeterministicCNN,
     mc_model: MCDropoutCNN,
     laplace_model: LaplaceWrapper,
+    val_loader: DataLoader,
     test_loader: DataLoader,
     save_dir: Optional[Path] = None
 ) -> Dict[str, Dict]:
     """
     Ejecuta la evaluación completa de todos los modelos.
 
-    Esta función:
-    1. Evalúa cada modelo en el test set
-    2. Calcula métricas de clasificación y calibración
-    3. Genera visualizaciones comparativas
-    4. Analiza la incertidumbre
+    Flujo:
+    1. Calibra umbrales de triaje en validation usando percentil fijo
+    2. Evalúa cada modelo en test
+    3. Calcula métricas de clasificación/calibración
+    4. Calcula métricas de triaje con umbrales calibrados
+    5. Guarda thresholds y resultados
 
     Args:
         det_model: Modelo determinista
         mc_model: Modelo MC Dropout
         laplace_model: Modelo con Laplace
+        val_loader: DataLoader de validación
         test_loader: DataLoader de test
-        train_loader: DataLoader de entrenamiento (no usado, por compatibilidad)
         save_dir: Directorio donde guardar resultados JSON
 
     Returns:
-        Dict con todos los resultados (claves: 'deterministic', 'mc_dropout', 'laplace')
+        Dict con todos los resultados
     """
     if save_dir is None:
         save_dir = RESULTS_DIR
 
     results = {}
 
-    # =========================================================================
-    # 1. Evaluar modelo determinista
-    # =========================================================================
+    # ==============================================================
+    # 0. Calibración de thresholds en validation
+    # ==============================================================
+    print("\n" + "=" * 60)
+    print("CALIBRANDO UMBRALES DE TRIAJE EN VALIDATION")
+    print("=" * 60)
+
+    # MC Dropout en validation
+    _, _, epis_mc_val, _, total_unc_mc_val = evaluate_mc_dropout(mc_model, val_loader)
+    mc_thr = calibrate_uncertainty_threshold(epis_mc_val, percentile=TRIAGE_PERCENTILE)
+
+    # Laplace en validation
+    _, _, epis_la_val, _, total_unc_la_val = evaluate_laplace(laplace_model, val_loader)
+    la_thr = calibrate_uncertainty_threshold(epis_la_val, percentile=TRIAGE_PERCENTILE)
+
+    thresholds = {
+        "triage_percentile": TRIAGE_PERCENTILE,
+        "mc_dropout": {
+            "epistemic_threshold": float(mc_thr),
+            "epistemic_p50": float(np.percentile(epis_mc_val, 50)),
+            "epistemic_p85": float(np.percentile(epis_mc_val, 85)),
+            "epistemic_p90": float(np.percentile(epis_mc_val, 90)),
+            "epistemic_p95": float(np.percentile(epis_mc_val, 95)),
+            "total_std_p50": float(np.percentile(np.sqrt(np.maximum(total_unc_mc_val, 0.0)), 50)),
+            "total_std_p85": float(np.percentile(np.sqrt(np.maximum(total_unc_mc_val, 0.0)), 85)),
+            "total_std_p90": float(np.percentile(np.sqrt(np.maximum(total_unc_mc_val, 0.0)), 90)),
+            "total_std_p95": float(np.percentile(np.sqrt(np.maximum(total_unc_mc_val, 0.0)), 95)),
+        },
+        "laplace": {
+            "epistemic_threshold": float(la_thr),
+            "epistemic_p50": float(np.percentile(epis_la_val, 50)),
+            "epistemic_p85": float(np.percentile(epis_la_val, 85)),
+            "epistemic_p90": float(np.percentile(epis_la_val, 90)),
+            "epistemic_p95": float(np.percentile(epis_la_val, 95)),
+            "total_std_p50": float(np.percentile(np.sqrt(np.maximum(total_unc_la_val, 0.0)), 50)),
+            "total_std_p85": float(np.percentile(np.sqrt(np.maximum(total_unc_la_val, 0.0)), 85)),
+            "total_std_p90": float(np.percentile(np.sqrt(np.maximum(total_unc_la_val, 0.0)), 90)),
+            "total_std_p95": float(np.percentile(np.sqrt(np.maximum(total_unc_la_val, 0.0)), 95)),
+        }
+    }
+
+    with open(save_dir / "uncertainty_thresholds.json", "w") as f:
+        json.dump(thresholds, f, indent=2)
+
+    print(f"MC Dropout threshold (p{TRIAGE_PERCENTILE}): {mc_thr:.6f}")
+    print(f"Laplace threshold    (p{TRIAGE_PERCENTILE}): {la_thr:.6f}")
+
+    # ==============================================================
+    # 1. Deterministic
+    # ==============================================================
     print("\n" + "=" * 60)
     print("EVALUANDO MODELO DETERMINISTA")
     print("=" * 60)
 
-    # Medir tiempo de inferencia y uso de memoria para el modelo determinista
     start_time = time.perf_counter()
-    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0 # Memoria antes de la inferencia
+    mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
 
     y_true_det, y_pred_det, conf_det = evaluate_deterministic(det_model, test_loader)
 
-    # Medir tiempo y memoria después de la inferencia
     end_time = time.perf_counter()
-    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0 # Memoria después de la inferencia
+    mem_after = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
 
     metrics_det = compute_all_metrics(y_true_det, y_pred_det)
-    # Aliases para compatibilidad con main.py
     metrics_det['auc'] = metrics_det['auc_roc']
     metrics_det['brier'] = metrics_det['brier_score']
-    # Datos por muestra con prefijo _ para que main.py los excluya del JSON
     metrics_det['_y_true'] = y_true_det
     metrics_det['_y_pred'] = y_pred_det
     metrics_det['_uncertainty'] = 1.0 - conf_det
-    # Guardar métricas de tiempo y memoria
     metrics_det['inference_time_sec'] = end_time - start_time
-    metrics_det['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
-    # Guardar resultados
+    metrics_det['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6
+
     results['deterministic'] = metrics_det
 
-    print(f"AUC-ROC: {metrics_det['auc_roc']:.4f}")
-    print(f"ECE: {metrics_det['ece']:.4f}")
-    print(f"Tiempo de inferencia: {metrics_det['inference_time_sec']:.2f} segundos")
-    if torch.cuda.is_available():
-        print(f"Uso de memoria: {metrics_det['inference_memory_delta_mb']:.2f} MB")
-
-    # =========================================================================
-    # 2. Evaluar MC Dropout
-    # =========================================================================
+    # ==============================================================
+    # 2. MC Dropout
+    # ==============================================================
     print("\n" + "=" * 60)
     print("EVALUANDO MC DROPOUT")
     print("=" * 60)
 
-    # Medir tiempo de inferencia y uso de memoria para el modelo MC Dropout
     start_time = time.perf_counter()
     mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
 
@@ -397,35 +437,39 @@ def full_evaluation(
     metrics_mc['_epistemic_uncertainty'] = epis_mc
     metrics_mc['_aleatoric_uncertainty'] = ale_mc
     metrics_mc['_total_uncertainty'] = total_unc_mc
+    metrics_mc['_epistemic_std'] = np.sqrt(np.maximum(epis_mc, 0.0))
+    metrics_mc['_total_std'] = np.sqrt(np.maximum(total_unc_mc, 0.0))
     metrics_mc['inference_time_sec'] = end_time - start_time
-    metrics_mc['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
+    metrics_mc['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6
 
     y_pred_binary_mc = (y_pred_mc >= 0.5).astype(int)
     unc_analysis_mc = analyze_uncertainty_by_correctness(epis_mc, y_true_mc, y_pred_binary_mc)
     metrics_mc['_uncertainty_analysis'] = unc_analysis_mc
 
-    # Calcular métricas de triage (ejemplo de uso de métricas específicas para modelos bayesianos)
-    triage_mc = compute_triage_metrics(y_true_mc, y_pred_mc, epis_mc)
-    metrics_mc['referral_rate'] = triage_mc['referral_rate']
-    metrics_mc['coverage'] = triage_mc['coverage']
-    metrics_mc['accuracy_on_confident'] = triage_mc['accuracy_on_confident']
+    triage_mc = compute_triage_metrics(
+        y_true_mc, y_pred_mc, epis_mc,
+        uncertainty_threshold=mc_thr
+    )
+    metrics_mc.update(triage_mc)
+    metrics_mc['triage_percentile'] = TRIAGE_PERCENTILE
 
-    # Guardar resultados
     results['mc_dropout'] = metrics_mc
 
     print(f"AUC-ROC: {metrics_mc['auc_roc']:.4f}")
     print(f"ECE: {metrics_mc['ece']:.4f}")
-    print(f"Incertidumbre media (correctas): {unc_analysis_mc['mean_uncertainty_correct']:.4f}")
-    print(f"Incertidumbre media (incorrectas): {unc_analysis_mc['mean_uncertainty_incorrect']:.4f}")
+    print(f"MC threshold: {mc_thr:.6f}")
+    print(f"Incertidumbre media (correctas): {unc_analysis_mc['mean_uncertainty_correct']:.6f}")
+    print(f"Incertidumbre media (incorrectas): {unc_analysis_mc['mean_uncertainty_incorrect']:.6f}")
+    print(f"Referral rate: {metrics_mc['referral_rate']:.2%}")
+    print(f"FN no derivados: {metrics_mc['false_negatives_non_referred']}")
 
-    # =========================================================================
-    # 3. Evaluar Laplace
-    # =========================================================================
+    # ==============================================================
+    # 3. Laplace
+    # ==============================================================
     print("\n" + "=" * 60)
     print("EVALUANDO LAPLACE APPROXIMATION")
     print("=" * 60)
 
-    # Medir tiempo de inferencia y uso de memoria para el modelo Laplace
     start_time = time.perf_counter()
     mem_before = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
 
@@ -442,91 +486,39 @@ def full_evaluation(
     metrics_la['_epistemic_uncertainty'] = epis_la
     metrics_la['_aleatoric_uncertainty'] = ale_la
     metrics_la['_total_uncertainty'] = total_unc_la
+    metrics_la['_epistemic_std'] = np.sqrt(np.maximum(epis_la, 0.0))
+    metrics_la['_total_std'] = np.sqrt(np.maximum(total_unc_la, 0.0))
     metrics_la['inference_time_sec'] = end_time - start_time
-    metrics_la['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6  # Convertir a MB
+    metrics_la['inference_memory_delta_mb'] = (mem_after - mem_before) / 1e6
 
     y_pred_binary_la = (y_pred_la >= 0.5).astype(int)
     unc_analysis_la = analyze_uncertainty_by_correctness(epis_la, y_true_la, y_pred_binary_la)
     metrics_la['_uncertainty_analysis'] = unc_analysis_la
 
-    # Métricas de triaje para Laplace
-    triage_la = compute_triage_metrics(y_true_la, y_pred_la, epis_la)
-    metrics_la['referral_rate'] = triage_la['referral_rate']
-    metrics_la['coverage'] = triage_la['coverage']
-    metrics_la['accuracy_on_confident'] = triage_la['accuracy_on_confident']
+    triage_la = compute_triage_metrics(
+        y_true_la, y_pred_la, epis_la,
+        uncertainty_threshold=la_thr
+    )
+    metrics_la.update(triage_la)
+    metrics_la['triage_percentile'] = TRIAGE_PERCENTILE
 
     results['laplace'] = metrics_la
 
     print(f"AUC-ROC: {metrics_la['auc_roc']:.4f}")
     print(f"ECE: {metrics_la['ece']:.4f}")
-    print(f"Incertidumbre media (correctas): {unc_analysis_la['mean_uncertainty_correct']:.4f}")
-    print(f"Incertidumbre media (incorrectas): {unc_analysis_la['mean_uncertainty_incorrect']:.4f}")
+    print(f"Laplace threshold: {la_thr:.6f}")
+    print(f"Incertidumbre media (correctas): {unc_analysis_la['mean_uncertainty_correct']:.6f}")
+    print(f"Incertidumbre media (incorrectas): {unc_analysis_la['mean_uncertainty_incorrect']:.6f}")
+    print(f"Referral rate: {metrics_la['referral_rate']:.2%}")
+    print(f"FN no derivados: {metrics_la['false_negatives_non_referred']}")
 
-    # =========================================================================
-    # 4. Imprimir tabla comparativa
-    # =========================================================================
     print_metrics_table({
         'Deterministic': metrics_det,
         'MC Dropout': metrics_mc,
         'Laplace': metrics_la
     })
 
-    # =========================================================================
-    # 5. Generar visualizaciones
-    # =========================================================================
-    # print("\nGenerando visualizaciones...")
-
-    # # Reliability diagrams
-    # fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    # plot_reliability_diagram(y_true_det, y_pred_det, model_name='Deterministic', ax=axes[0])
-    # plot_reliability_diagram(y_true_mc, y_pred_mc, model_name='MC Dropout', ax=axes[1])
-    # plot_reliability_diagram(y_true_la, y_pred_la, model_name='Laplace', ax=axes[2])
-    # plt.tight_layout()
-    # fig.savefig(save_dir / 'reliability_diagrams.png', dpi=150, bbox_inches='tight')
-    # plt.close()
-
-    # # ROC curves
-    # fig, ax = plt.subplots(figsize=(8, 6))
-    # plot_roc_curve(y_true_det, y_pred_det, 'Deterministic', ax=ax)
-    # plot_roc_curve(y_true_mc, y_pred_mc, 'MC Dropout', ax=ax)
-    # plot_roc_curve(y_true_la, y_pred_la, 'Laplace', ax=ax)
-    # ax.legend()
-    # fig.savefig(save_dir / 'roc_curves.png', dpi=150, bbox_inches='tight')
-    # plt.close()
-
-    # # Histogramas de incertidumbre
-    # plot_uncertainty_histogram(epis_mc, y_true_mc, y_pred_binary_mc, model_name='MC Dropout', aleatoric=ale_mc)
-    # plt.savefig(save_dir / 'uncertainty_hist_mc.png', dpi=150, bbox_inches='tight')
-    # plt.close()
-
-    # plot_uncertainty_histogram(epis_la, y_true_la, y_pred_binary_la, model_name='Laplace', aleatoric=ale_la)
-    # plt.savefig(save_dir / 'uncertainty_hist_laplace.png', dpi=150, bbox_inches='tight')
-    # plt.close()
-
-    # Comparación de métricas
-    compare_models_metrics(
-        {'Deterministic': metrics_det, 'MC Dropout': metrics_mc, 'Laplace': metrics_la},
-        save_path=save_dir / 'metrics_comparison.png'
-    )
-    plt.close()
-
-    # Guardar resultados en JSON (solo valores escalares, sin arrays ni dicts)
-    results_json = {}
-    for model_name, model_results in results.items():
-        results_json[model_name] = {
-            k: float(v) if isinstance(v, (np.floating, np.integer, float, int)) else v
-            for k, v in model_results.items()
-            if isinstance(v, (np.floating, np.integer, float, int))
-        }
-
-    with open(save_dir / 'evaluation_results.json', 'w') as f:
-        json.dump(results_json, f, indent=2)
-
-    print(f"Resultados guardados en {save_dir}")
-    print(f"Figuras guardadas en {save_dir}")
-
     return results
-
 
 def generate_uncertainty_report(
     results: Dict[str, Dict],

@@ -464,58 +464,76 @@ def print_metrics_table(results: Dict[str, Dict[str, float]]):
     print("      Para AUC-ROC, F1-Score y Accuracy, mayor es mejor.")
 
 
+def calibrate_uncertainty_threshold(
+    epistemic_val: np.ndarray,
+    percentile: float = 85.0
+) -> float:
+    """
+    Calibra el umbral de derivación usando la distribución de incertidumbre
+    epistémica en validation.
+
+    Args:
+        epistemic_val: Incertidumbre epistémica por muestra en validation [N]
+        percentile: Percentil a usar como umbral de derivación
+
+    Returns:
+        float: Umbral de incertidumbre
+    """
+    epistemic_val = np.asarray(epistemic_val, dtype=np.float64)
+    if epistemic_val.size == 0:
+        raise ValueError("epistemic_val está vacío; no se puede calibrar el umbral.")
+    return float(np.percentile(epistemic_val, percentile))
+
+
 def triage_decision(
     mean_prob: float,
     epistemic_uncertainty: float,
-    uncertainty_threshold: float = None,
+    uncertainty_threshold: float,
     confidence_threshold: float = None
 ) -> dict:
     """
     Traduce incertidumbre en una decisión clínica accionable.
 
     Lógica:
-    - Si la incertidumbre epistémica supera el umbral → derivar a patólogo
+    - Si la incertidumbre epistémica supera el umbral calibrado → derivar
     - Si no, clasificar según la probabilidad media
-
-    Esta función implementa el requisito de 'valor de negocio':
-    la incertidumbre deja de ser un número abstracto y se convierte
-    en una acción concreta del sistema.
 
     Args:
         mean_prob: Probabilidad media de cáncer p(y=1|x)
         epistemic_uncertainty: Varianza entre muestras del posterior
-        uncertainty_threshold: Umbral de derivación (default: config)
-        confidence_threshold: Umbral de clasificación (default: config)
+        uncertainty_threshold: Umbral de derivación calibrado en validation
+        confidence_threshold: Umbral de clasificación binaria
 
     Returns:
         dict con keys: decision, confidence, action, color
     """
-    from config import UNCERTAINTY_THRESHOLD, CONFIDENCE_THRESHOLD
+    from config import CONFIDENCE_THRESHOLD
 
-    if uncertainty_threshold is None:
-        uncertainty_threshold = UNCERTAINTY_THRESHOLD
     if confidence_threshold is None:
         confidence_threshold = CONFIDENCE_THRESHOLD
 
     if epistemic_uncertainty > uncertainty_threshold:
         return {
             "decision": "UNCERTAIN",
-            "confidence": mean_prob,
-            "action": "⚠️  High epistemic uncertainty — refer to human pathologist review",
+            "confidence": float(mean_prob),
+            "action": (
+                "⚠️ High epistemic uncertainty — refer to human pathologist review "
+                f"(unc={epistemic_uncertainty:.6f} > thr={uncertainty_threshold:.6f})"
+            ),
             "color": "orange"
         }
     elif mean_prob >= confidence_threshold:
         return {
             "decision": "CANCER",
-            "confidence": mean_prob,
-            "action": "🔴  Malignant tissue detected — flag for clinical follow-up",
+            "confidence": float(mean_prob),
+            "action": "🔴 Malignant tissue detected — flag for clinical follow-up",
             "color": "red"
         }
     else:
         return {
             "decision": "BENIGN",
-            "confidence": 1 - mean_prob,
-            "action": "🟢  No malignancy detected — routine monitoring",
+            "confidence": float(1.0 - mean_prob),
+            "action": "🟢 No malignancy detected — routine monitoring",
             "color": "green"
         }
 
@@ -524,44 +542,70 @@ def compute_triage_metrics(
     y_true: np.ndarray,
     y_pred_proba: np.ndarray,
     epistemic: np.ndarray,
-    uncertainty_threshold: float = None
+    uncertainty_threshold: float,
+    confidence_threshold: float = None
 ) -> dict:
     """
-    Calcula métricas de negocio basadas en el sistema de triaje.
+    Calcula métricas de negocio/seguridad basadas en el sistema de triaje.
 
     Métricas:
     - referral_rate: fracción de casos derivados a revisión humana
-    - accuracy_on_confident: accuracy solo en casos NO derivados
     - coverage: fracción de casos resueltos automáticamente
+    - accuracy_on_confident: accuracy solo en casos NO derivados
+    - false_negative_rate_non_referred: FN rate entre casos no derivados
+    - false_negatives_non_referred: número de falsos negativos no derivados
+    - non_referred_positives: positivos reales entre los no derivados
 
     Args:
         y_true: Etiquetas reales [N]
         y_pred_proba: Probabilidades medias [N]
         epistemic: Incertidumbre epistémica [N]
-        uncertainty_threshold: Umbral de derivación
+        uncertainty_threshold: Umbral de derivación calibrado
+        confidence_threshold: Umbral de decisión de clase
 
     Returns:
-        dict con métricas de negocio
+        dict con métricas de triaje
     """
-    from config import UNCERTAINTY_THRESHOLD, CONFIDENCE_THRESHOLD
+    from config import CONFIDENCE_THRESHOLD
 
-    if uncertainty_threshold is None:
-        uncertainty_threshold = UNCERTAINTY_THRESHOLD
+    if confidence_threshold is None:
+        confidence_threshold = CONFIDENCE_THRESHOLD
+
+    y_true = np.asarray(y_true).astype(int)
+    y_pred_proba = np.asarray(y_pred_proba, dtype=np.float64)
+    epistemic = np.asarray(epistemic, dtype=np.float64)
 
     uncertain_mask = epistemic > uncertainty_threshold
     confident_mask = ~uncertain_mask
 
-    referral_rate = uncertain_mask.mean()
-    coverage = confident_mask.mean()
+    referral_rate = float(uncertain_mask.mean())
+    coverage = float(confident_mask.mean())
 
     if confident_mask.sum() > 0:
-        y_pred_confident = (y_pred_proba[confident_mask] >= CONFIDENCE_THRESHOLD).astype(int)
-        acc_confident = accuracy_score(y_true[confident_mask], y_pred_confident)
+        y_pred_confident = (y_pred_proba[confident_mask] >= confidence_threshold).astype(int)
+        y_true_confident = y_true[confident_mask]
+
+        acc_confident = float(accuracy_score(y_true_confident, y_pred_confident))
+
+        # Falsos negativos entre los casos NO derivados
+        fn_non_referred = int(((y_true_confident == 1) & (y_pred_confident == 0)).sum())
+        positives_non_referred = int((y_true_confident == 1).sum())
+        if positives_non_referred > 0:
+            fnr_non_referred = float(fn_non_referred / positives_non_referred)
+        else:
+            fnr_non_referred = float("nan")
     else:
-        acc_confident = float('nan')
+        acc_confident = float("nan")
+        fn_non_referred = 0
+        positives_non_referred = 0
+        fnr_non_referred = float("nan")
 
     return {
-        "referral_rate": float(referral_rate),
-        "coverage": float(coverage),
-        "accuracy_on_confident": float(acc_confident),
+        "referral_rate": referral_rate,
+        "coverage": coverage,
+        "accuracy_on_confident": acc_confident,
+        "false_negative_rate_non_referred": fnr_non_referred,
+        "false_negatives_non_referred": fn_non_referred,
+        "non_referred_positives": positives_non_referred,
+        "uncertainty_threshold": float(uncertainty_threshold),
     }
