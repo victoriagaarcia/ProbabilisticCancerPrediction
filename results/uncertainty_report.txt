@@ -6,29 +6,29 @@ REPORTE DE ANÁLISIS DE INCERTIDUMBRE - MC DROPOUT
 ESTADÍSTICAS GENERALES
 ----------------------
 - Incertidumbre media global: 0.000052
-- Desviación estándar: 0.000133
+- Desviación estándar: 0.000129
 - Mínimo: 0.000000
-- Máximo: 0.003051
+- Máximo: 0.002378
 
 INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
 -------------------------------------------
 - Predicciones correctas:
   * Media: 0.000042
-  * Std: 0.000112
+  * Std: 0.000109
 
 - Predicciones incorrectas:
   * Media: 0.000300
-  * Std: 0.000276
+  * Std: 0.000263
 
-- Ratio (incorrectas/correctas): 7.16x
+- Ratio (incorrectas/correctas): 7.19x
 
 Un ratio > 1 indica que el modelo tiene más incertidumbre cuando falla,
 lo cual es el comportamiento deseado de un modelo bayesiano bien calibrado.
 
 TOP 20 EJEMPLOS MÁS INCIERTOS
 ----------------------------------
-- Accuracy en estos ejemplos: 50.0%
-- Incertidumbre media en top-20: 0.001875
+- Accuracy en estos ejemplos: 45.0%
+- Incertidumbre media en top-20: 0.001726
 
 Estos ejemplos representan casos ambiguos que deberían ser revisados
 por un experto humano en un entorno clínico real.
@@ -48,7 +48,7 @@ ESTADÍSTICAS GENERALES
 - Incertidumbre media global: 0.000018
 - Desviación estándar: 0.000074
 - Mínimo: 0.000000
-- Máximo: 0.001900
+- Máximo: 0.001609
 
 INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
 -------------------------------------------
@@ -58,17 +58,17 @@ INCERTIDUMBRE POR CORRECTITUD DE PREDICCIÓN
 
 - Predicciones incorrectas:
   * Media: 0.000165
-  * Std: 0.000189
+  * Std: 0.000183
 
-- Ratio (incorrectas/correctas): 13.23x
+- Ratio (incorrectas/correctas): 13.20x
 
 Un ratio > 1 indica que el modelo tiene más incertidumbre cuando falla,
 lo cual es el comportamiento deseado de un modelo bayesiano bien calibrado.
 
 TOP 20 EJEMPLOS MÁS INCIERTOS
 ----------------------------------
-- Accuracy en estos ejemplos: 55.0%
-- Incertidumbre media en top-20: 0.001168
+- Accuracy en estos ejemplos: 65.0%
+- Incertidumbre media en top-20: 0.001093
 
 Estos ejemplos representan casos ambiguos que deberían ser revisados
 por un experto humano en un entorno clínico real.

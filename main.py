@@ -299,7 +299,7 @@ def train_pipeline(args, train_loader, val_loader):
 
 
 def evaluation_pipeline(det_model, mc_model, laplace_model, 
-                        test_loader, train_loader, histories=None):
+                        val_loader, test_loader, train_loader, histories=None):
     """
     Execute the complete evaluation pipeline.
     
@@ -326,6 +326,7 @@ def evaluation_pipeline(det_model, mc_model, laplace_model,
         det_model=det_model,
         mc_model=mc_model,
         laplace_model=laplace_model,
+        val_loader=val_loader,
         test_loader=test_loader,
         save_dir=RESULTS_DIR
     )
@@ -539,6 +540,7 @@ Examples:
             det_model=det_model,
             mc_model=mc_model,
             laplace_model=laplace_model,
+            val_loader=val_loader,
             test_loader=test_loader,
             train_loader=train_loader,
             histories=histories
