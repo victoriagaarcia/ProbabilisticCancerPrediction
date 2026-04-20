@@ -218,6 +218,7 @@ INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmr8
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\vf\adobe\times\ptmri8t.vf
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmri8r.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmr8t.tfm
+INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmr8t.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\vf\adobe\times\ptmr8t.vf
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmr8r.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\tex\latex\psnfss\ts1ptm.fd
@@ -225,8 +226,8 @@ INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\tex\latex\psnfss\ts1ptm.fd
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\tex\latex\psnfss\ts1ptm.fd
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmr8c.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmb8t.tfm
-INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmb8t.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\vf\adobe\times\ptmr8c.vf
+INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmb8t.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\vf\adobe\times\ptmb8t.vf
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\tfm\adobe\times\ptmb8r.tfm
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\vf\adobe\times\ptmb8t.vf
@@ -238,6 +239,8 @@ INPUT C:\Users\Usuario\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\e
 INPUT C:\Users\Usuario\AppData\Local\MiKTeX\fonts\pk\ljfour\jknappen\ec\dpi600\ectt1000.pk
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmbx10.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmbx10.pfb
+INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmbx7.pfb
+INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmbx7.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmex10.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmex10.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmmi10.pfb
@@ -252,6 +255,8 @@ INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cmextra\cmmib7.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr10.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr10.pfb
+INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr5.pfb
+INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr5.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr7.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr7.pfb
 INPUT C:\Users\Usuario\AppData\Local\Programs\MiKTeX\fonts\type1\public\amsfonts\cm\cmr9.pfb

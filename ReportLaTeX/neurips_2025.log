@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.2) (preloaded format=pdflatex 2026.4.20)  20 APR 2026 13:01
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.2) (preloaded format=pdflatex 2026.4.20)  20 APR 2026 17:17
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -467,38 +467,50 @@ Package natbib Warning: Citation `gal2016dropout' on page 1 undefined on input l
 [1
 
 
-{C:/Users/Usuario/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/base/8r.enc}] [2] [3] [4]
-Underfull \hbox (badness 3579) in paragraph at lines 499--500
+{C:/Users/Usuario/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}{C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/enc/dvips/base/8r.enc}] [2]
+
+LaTeX Warning: Reference `others' on page 3 undefined on input line 338.
+
+[3] [4]
+
+Package natbib Warning: Citation `gal2016dropout' on page 5 undefined on input line 583.
+
+[5] [6]
+Underfull \hbox (badness 3579) in paragraph at lines 750--751
 \T1/cmtt/m/n/10 503 / why-[]is-[]preferable-[]to$[] \T1/ptm/m/n/10 (+20) and []$\T1/cmtt/m/n/10 https : / / tex . stackexchange . com / questions / 40492 /
  []
 
-LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 525.
+LaTeX Font Info:    Trying to load font information for TS1+ptm on input line 776.
 (C:\Users\Usuario\AppData\Local\Programs\MiKTeX\tex/latex/psnfss\ts1ptm.fd
 File: ts1ptm.fd 2001/06/04 font definitions for TS1/ptm.
-) [5] [6] [7] [8] [9] [10] [11] [12] [13]
+) [7] [8] [9] [10] [11] [12] [13] [14]
 
 Package natbib Warning: There were undefined citations.
 
-[14] (neurips_2025.aux)
+[15] (neurips_2025.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
  ***********
+
+
+LaTeX Warning: There were undefined references.
+
 Package rerunfilecheck Info: File `neurips_2025.out' has not changed.
-(rerunfilecheck)             Checksum: A2B49F690FDEE393B4ADB20A4B21BF8D;3484.
+(rerunfilecheck)             Checksum: EEC9CD42730F409634EC89D61CA04F0C;3852.
  ) 
 Here is how much of TeX's memory you used:
- 13161 strings out of 467691
- 206189 string characters out of 5414019
- 666732 words of memory out of 5000000
- 41716 multiletter control sequences out of 15000+600000
- 684435 words of font info for 255 fonts, out of 8000000 for 9000
+ 13235 strings out of 467691
+ 207096 string characters out of 5414019
+ 668060 words of memory out of 5000000
+ 41742 multiletter control sequences out of 15000+600000
+ 687491 words of font info for 272 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,9n,79p,1166b,748s stack positions out of 10000i,1000n,20000p,200000b,200000s
- <C:\Users\Usuario\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ectt1000.pk><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmib10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cmextra/cmmib7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmb8a.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmr8a.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmri8a.pfb>
-Output written on neurips_2025.pdf (14 pages, 274474 bytes).
+ 75i,12n,79p,1166b,746s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ <C:\Users\Usuario\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\ectt1000.pk><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmbx7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmex10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi9.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmib10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cmextra/cmmib7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr5.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr9.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy9.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/symbols/msbm10.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmb8a.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmr8a.pfb><C:/Users/Usuario/AppData/Local/Programs/MiKTeX/fonts/type1/urw/times/utmri8a.pfb>
+Output written on neurips_2025.pdf (15 pages, 322071 bytes).
 PDF statistics:
- 375 PDF objects out of 1000 (max. 8388607)
- 70 named destinations out of 1000 (max. 500000)
- 61097 words of extra memory for PDF output out of 61914 (max. 10000000)
+ 421 PDF objects out of 1000 (max. 8388607)
+ 93 named destinations out of 1000 (max. 500000)
+ 63153 words of extra memory for PDF output out of 74296 (max. 10000000)
 

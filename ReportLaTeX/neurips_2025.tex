@@ -338,88 +338,339 @@ side.
 Please pay special attention to the instructions in Section \ref{others}
 regarding figures, tables, acknowledgments, and references.
 
-\section{Headings: first level}
-\label{headings}
+\section{Metodolog\'ia}
+\label{sec:method}
+
+\subsection{Arquitectura troncal}
+\label{sec:arch}
+
+Los tres modelos se construyen sobre una misma arquitectura base, concretamente
+una ResNet18 preentrenada en ImageNet, que act\'ua como extractor de
+caracter\'isticas para la clasificaci\'on binaria de parches
+histopatol\'ogicos. Sea $g_{\boldsymbol{\phi}}(\mathbf{x})\in\mathbb{R}^{512}$ la
+representaci\'on producida por el backbone para una imagen
+$\mathbf{x}\in\mathbb{R}^{3\times 96\times 96}$.
+Siguiendo una estrategia de \emph{fine-tuning} parcial, congelamos los
+bloques \texttt{conv1}, \texttt{bn1}, \texttt{layer1} y \texttt{layer2},
+y entrenamos \'{u}nicamente \texttt{layer3}, \texttt{layer4} y la cabeza
+clasificadora. Esta decisi\'on reduce el n\'umero de par\'ametros
+efectivamente optimizados y preserva representaciones visuales gen\'ericas
+aprendidas en ImageNet.
+
+El modelo determinista sustituye la capa totalmente conectada original por
+una proyecci\'on lineal
+\begin{equation}
+f_{\boldsymbol{\omega}}(\mathbf{x}) = \mathbf{W} \, g_{\boldsymbol{\phi}}(\mathbf{x}) + \mathbf{b},
+\qquad
+\mathbf{W}\in\mathbb{R}^{2\times 512},
+\quad
+\mathbf{b}\in\mathbb{R}^{2},
+\label{eq:det-head}
+\end{equation}
+de forma que la salida son dos \emph{logits} compatibles con la
+verosimilitud categ\'orica de la Secci\'on~\ref{sec:model}.
+
+En MC Dropout mantenemos el mismo backbone, pero reemplazamos la cabeza
+por un peque\~no bloque estoc\'astico
+\begin{equation}
+h \mapsto
+\mathrm{Linear}_{256\rightarrow 2}
+\!\Bigl(
+\mathrm{Dropout}_{p}
+\bigl(
+\mathrm{ReLU}(
+\mathrm{Linear}_{512\rightarrow 256}(h))
+\bigr)
+\Bigr),
+\qquad p=0.3,
+\label{eq:mc-head}
+\end{equation}
+introduciendo as\'i la fuente de aleatoriedad necesaria para la
+aproximaci\'on variacional impl\'icita.
+
+\subsection{Modelo determinista: estimaci\'on MAP}
+\label{sec:map-model}
+El clasificador de referencia se entrena minimizando la p\'erdida de
+entrop\'ia cruzada con regularizaci\'on $L_2$:
+\begin{equation}
+\mathcal{L}(\boldsymbol{\omega})
+=
+-\sum_{i=1}^{N}
+\log p(y_i\mid \mathbf{x}_i,\boldsymbol{\omega})
++
+\frac{\lambda}{2}\lVert \boldsymbol{\omega}\rVert_2^2,
+\qquad
+\lambda = 10^{-4}.
+\label{eq:map-loss}
+\end{equation}
+Bajo el prior gaussiano is\'otropo
+$p(\boldsymbol{\omega})=\mathcal{N}(\mathbf{0},\lambda^{-1}\mathbf{I})$,
+la minimizaci\'on de~\eqref{eq:map-loss} es equivalente a obtener el
+estimador MAP
+\begin{equation}
+\boldsymbol{\omega}^{*}
+=
+\arg\max_{\boldsymbol{\omega}}
+\left[
+\log p(\mathcal{D}\mid\boldsymbol{\omega})
++
+\log p(\boldsymbol{\omega})
+\right].
+\label{eq:map-estimator}
+\end{equation}
+
+Optimizamos~\eqref{eq:map-loss} con Adam, tasa de aprendizaje inicial
+$10^{-4}$ y \emph{weight decay} $10^{-4}$.
+La selecci\'on del mejor checkpoint se realiza sobre el AUC de
+validaci\'on. Para estabilizar el entrenamiento usamos dos mecanismos:
+(i)~\emph{early stopping} con paciencia 5 sobre AUC de validaci\'on y
+(ii)~\texttt{ReduceLROnPlateau} con factor 0.5 y paciencia 3.
+Cuando hay GPU disponible, el entrenamiento utiliza precisi\'on mixta
+autom\'atica para acelerar el c\'alculo sin alterar apreciablemente las
+m\'etricas finales.
+
+Este modelo no es bayesiano en sentido pleno, pero es fundamental por dos
+motivos: primero, act\'ua como \emph{baseline} fuerte; segundo, su punto
+MAP $\boldsymbol{\omega}^{*}$ es precisamente el centro alrededor del cual
+se construye la aproximaci\'on de Laplace.
+
+\subsection{Aproximaci\'on de Laplace}
+\label{sec:laplace-method}
+\paragraph{Aproximaci\'on local del posterior.}
+La aproximaci\'on de Laplace reemplaza el posterior exacto
+$p(\boldsymbol{\omega}\mid\mathcal{D})$ por una Gaussiana centrada en el
+modo MAP. Si expandimos el log-posterior alrededor de
+$\boldsymbol{\omega}^{*}$ mediante Taylor de segundo orden, obtenemos
+\begin{equation}
+\log p(\boldsymbol{\omega}\mid\mathcal{D})
+\approx
+\log p(\boldsymbol{\omega}^{*}\mid\mathcal{D})
+-
+\frac{1}{2}
+(\boldsymbol{\omega}-\boldsymbol{\omega}^{*})^{\top}
+\mathbf{H}
+(\boldsymbol{\omega}-\boldsymbol{\omega}^{*}),
+\label{eq:laplace-taylor}
+\end{equation}
+donde
+$\mathbf{H}=-\nabla^2_{\boldsymbol{\omega}}
+\log p(\boldsymbol{\omega}^{*}\mid\mathcal{D})$.
+Exponenciando y renormalizando, el posterior aproximado es
+\begin{equation}
+q(\boldsymbol{\omega})
+=
+\mathcal{N}
+\bigl(
+\boldsymbol{\omega}\mid
+\boldsymbol{\omega}^{*},
+\mathbf{\Sigma}
+\bigr),
+\qquad
+\mathbf{\Sigma}
+=
+(\mathbf{H}+\lambda_{\mathrm{LA}}\mathbf{I})^{-1},
+\label{eq:laplace-posterior}
+\end{equation}
+donde $\lambda_{\mathrm{LA}}$ es la precisi\'on del prior efectiva usada
+por Laplace. N\'otese que distinguimos $\lambda_{\mathrm{LA}}$ del
+\emph{weight decay} de entrenamiento: el primero se re-estima
+\emph{post-hoc} maximizando verosimilitud marginal aproximada.
+
+\paragraph{Laplace solo sobre la \'ultima capa.}
+Aplicar~\eqref{eq:laplace-posterior} a todos los pesos de una ResNet18
+completa es inviable. Por ello descomponemos
+$\boldsymbol{\omega}=(\boldsymbol{\phi},\boldsymbol{\psi})$, donde
+$\boldsymbol{\phi}$ agrupa el backbone y
+$\boldsymbol{\psi}\in\mathbb{R}^{1026}$ los par\'ametros de la \'ultima
+capa lineal ($512\times 2$ pesos m\'as 2 sesgos). El backbone se trata
+como extractor determinista fijo y la aproximaci\'on se restringe a
+\begin{equation}
+q(\boldsymbol{\psi})
+=
+\mathcal{N}
+\bigl(
+\boldsymbol{\psi}\mid
+\boldsymbol{\psi}^{*},
+\mathbf{\Sigma}_{\psi}
+\bigr).
+\label{eq:last-layer-laplace}
+\end{equation}
+Esta decisi\'on conserva el grueso de la incertidumbre
+\emph{task-specific} del clasificador con un coste muy inferior al de una
+Laplace de red completa.
+
+\paragraph{Curvatura y estructura de Hessiano.}
+En clasificaci\'on, el Hessiano exacto del log-posterior puede ser
+indefinido en redes profundas. Para obtener una matriz positiva
+semidefinida y num\'ericamente estable, empleamos la aproximaci\'on
+\emph{Generalized Gauss--Newton} (GGN),
+\begin{equation}
+\mathbf{H}_{\mathrm{GGN}}
+=
+\sum_{i=1}^{N}
+\mathbf{J}_{\psi}(\mathbf{x}_i)^{\top}
+\mathbf{\Lambda}_i
+\mathbf{J}_{\psi}(\mathbf{x}_i),
+\label{eq:ggn}
+\end{equation}
+donde $\mathbf{J}_{\psi}(\mathbf{x}_i)$ es el Jacobiano de los logits
+respecto a la \'ultima capa y
+$\mathbf{\Lambda}_i=-\nabla^2_{\mathbf{f}}
+\log p(y_i\mid \mathbf{f})$ es el Hessiano negativo de la
+log-verosimilitud respecto a los logits.
+Aun en la \'ultima capa, almacenar una covarianza densa puede ser
+innecesariamente costoso; por ello utilizamos la estructura
+Kronecker-factorizada (\texttt{kron}), que aproxima el Hessiano como
+producto de factores de menor dimensi\'on y ofrece un compromiso favorable
+entre coste y fidelidad.
+
+\paragraph{Ajuste de la precisi\'on del prior.}
+Tras ajustar Laplace sobre el conjunto de entrenamiento, optimizamos
+$\lambda_{\mathrm{LA}}$ maximizando una aproximaci\'on de la
+log-verosimilitud marginal,
+\begin{equation}
+\log p(\mathcal{D}\mid \lambda_{\mathrm{LA}})
+\approx
+\log p(\mathcal{D}\mid \boldsymbol{\omega}^{*})
++
+\log p(\boldsymbol{\omega}^{*}\mid \lambda_{\mathrm{LA}})
+-
+\frac{1}{2}\log
+\det
+\bigl(
+\mathbf{H}_{\mathrm{GGN}}+\lambda_{\mathrm{LA}}\mathbf{I}
+\bigr)
++
+\mathrm{const}.
+\label{eq:marglik}
+\end{equation}
+Esta etapa constituye una forma de selecci\'on de modelo bayesiana
+\emph{post-hoc} y evita fijar manualmente la escala del prior de Laplace.
+
+\paragraph{Predicci\'on con Laplace.}
+La distribuci\'on predictiva exacta bajo~\eqref{eq:last-layer-laplace} es
+todav\'ia intractable, por lo que recurrimos a dos aproximaciones
+complementarias. Para la probabilidad predictiva media final usamos la
+regla predictiva tipo GLM con aproximaci\'on \emph{probit} sobre la salida
+linealizada de la \'ultima capa. Denotando por
+$\bar p_{\mathrm{LA}}(y=1\mid \mathbf{x},\mathcal{D})$ dicha media,
+\begin{equation}
+\bar p_{\mathrm{LA}}(y=1\mid \mathbf{x},\mathcal{D})
+\approx
+p_{\mathrm{GLM\text{-}probit}}(y=1\mid \mathbf{x},\mathcal{D}).
+\label{eq:laplace-glm}
+\end{equation}
+Adicionalmente, para cuantificar incertidumbre epist\'emica extraemos
+$T_{\mathrm{LA}}=100$ muestras posteriores
+$\boldsymbol{\psi}^{(t)}\sim q(\boldsymbol{\psi})$ y computamos
+\begin{equation}
+p_t(\mathbf{x})
+=
+p\!\left(y=1\mid \mathbf{x},\boldsymbol{\psi}^{(t)}\right),
+\qquad
+t=1,\dots,T_{\mathrm{LA}}.
+\label{eq:laplace-samples}
+\end{equation}
+Esta formulaci\'on h\'ibrida separa expl\'icitamente la regla predictiva
+empleada para calibraci\'on de la utilizada para estimar dispersi\'on
+posterior.
 
 
-All headings should be lower case (except for first word and proper nouns),
-flush left, and bold.
+\subsection{MC Dropout como inferencia variacional}
+\label{sec:mcdropout-method}
 
+MC Dropout aproxima la integral predictiva bayesiana manteniendo activas
+las m\'ascaras de dropout en inferencia. Siguiendo la interpretaci\'on variacional de \citet{gal2016dropout},
+cada m\'ascara induce una realizaci\'on de un posterior aproximado
+$q_{\mathrm{drop}}(\boldsymbol{\omega})$.
+En nuestro caso, la estocasticidad se introduce solo en la cabeza
+clasificadora de~\eqref{eq:mc-head}; el resto del backbone permanece
+determinista.
 
-First-level headings should be in 12-point type.
+En tiempo de test fijamos la red en modo evaluaci\'on para no actualizar
+las estad\'isticas de BatchNorm, pero reactivamos exclusivamente las capas
+\texttt{Dropout}. De este modo, cada pasada hacia delante usa una
+m\'ascara distinta y genera una muestra impl\'icita del posterior
+aproximado. La predictiva se estima por Monte Carlo como
+\begin{equation}
+\bar p_{\mathrm{MC}}(y=1\mid \mathbf{x},\mathcal{D})
+\approx
+\frac{1}{T_{\mathrm{MC}}}
+\sum_{t=1}^{T_{\mathrm{MC}}}
+p\!\left(y=1\mid \mathbf{x},\boldsymbol{\omega}^{(t)}\right),
+\qquad
+\boldsymbol{\omega}^{(t)}\sim q_{\mathrm{drop}}(\boldsymbol{\omega}),
+\label{eq:mc-predictive}
+\end{equation}
+con $T_{\mathrm{MC}}=50$ pasadas estoc\'asticas.
 
+Frente a Laplace, MC Dropout presenta tres diferencias operativas
+relevantes. Primero, la familia variacional queda determinada por una
+probabilidad de dropout fija $p=0.3$, que no se infiere del posterior.
+Segundo, el m\'etodo requiere introducir dropout en arquitectura y
+entrenamiento, por lo que no es estrictamente \emph{post-hoc}. Tercero,
+la incertidumbre se obtiene por muestreo funcional directo sin necesidad
+de construir expl\'icitamente un Hessiano o una covarianza de pesos.
 
-\subsection{Headings: second level}
+\subsection{Descomposici\'on de la incertidumbre y pol\'itica de triaje}
+\label{sec:uncertainty-method}
 
+Para cada entrada $\mathbf{x}$ y cada muestra estoc\'astica $t$ definimos
+la probabilidad de clase positiva
+$p_t(\mathbf{x}) = p(y=1\mid \mathbf{x}, \boldsymbol{\omega}^{(t)})$.
+En MC Dropout empleamos la descomposici\'on habitual de la varianza
+predictiva,
+\begin{align}
+u_{\mathrm{epi}}(\mathbf{x})
+&=
+\mathrm{Var}_{t}\!\left[p_t(\mathbf{x})\right], \label{eq:epi}\\
+u_{\mathrm{ale}}(\mathbf{x})
+&=
+\frac{1}{T}\sum_{t=1}^{T}
+p_t(\mathbf{x})\bigl(1-p_t(\mathbf{x})\bigr), \label{eq:ale-mc}\\
+u_{\mathrm{tot}}(\mathbf{x})
+&=
+u_{\mathrm{epi}}(\mathbf{x}) + u_{\mathrm{ale}}(\mathbf{x}).
+\label{eq:tot}
+\end{align}
+La componente epist\'emica mide el desacuerdo entre muestras del
+posterior aproximado; la aleat\'orica captura la incertidumbre intr\'inseca
+de una Bernoulli condicional.
 
-Second-level headings should be in 10-point type.
+En Laplace usamos una variante coherente con la evaluaci\'on final del
+sistema. La incertidumbre epist\'emica se estima igualmente mediante
+$\mathrm{Var}_{t}[p_t(\mathbf{x})]$, pero la componente aleat\'orica se
+calcula a partir de la probabilidad media final obtenida por la regla
+GLM-probit:
+\begin{equation}
+u_{\mathrm{ale}}^{\mathrm{LA}}(\mathbf{x})
+=
+\bar p_{\mathrm{LA}}(\mathbf{x})
+\left(1-\bar p_{\mathrm{LA}}(\mathbf{x})\right).
+\label{eq:ale-laplace}
+\end{equation}
+Con ello, la cantidad mostrada al usuario sigue siendo
+$u_{\mathrm{tot}}=u_{\mathrm{epi}}+u_{\mathrm{ale}}$, pero la media
+predictiva y la estimaci\'on de dispersi\'on pueden provenir de
+aproximaciones complementarias.
 
-
-\subsubsection{Headings: third level}
-
-
-Third-level headings should be in 10-point type.
-
-
-\paragraph{Paragraphs}
-
-
-There is also a \verb+\paragraph+ command available, which sets the heading in
-bold, flush left, and inline with the text, with the heading followed by 1\,em
-of space.
-
-
-\section{Citations, figures, tables, references}
-\label{others}
-
-
-These instructions apply to everyone.
-
-
-\subsection{Citations within the text}
-
-
-The \verb+natbib+ package will be loaded for you by default.  Citations may be
-author/year or numeric, as long as you maintain internal consistency.  As to the
-format of the references themselves, any style is acceptable as long as it is
-used consistently.
-
-
-The documentation for \verb+natbib+ may be found at
-\begin{center}
-  \url{http://mirrors.ctan.org/macros/latex/contrib/natbib/natnotes.pdf}
-\end{center}
-Of note is the command \verb+\citet+, which produces citations appropriate for
-use in inline text.  For example,
-\begin{verbatim}
-   \citet{hasselmo} investigated\dots
-\end{verbatim}
-produces
-\begin{quote}
-  Hasselmo, et al.\ (1995) investigated\dots
-\end{quote}
-
-
-If you wish to load the \verb+natbib+ package with options, you may add the
-following before loading the \verb+neurips_2025+ package:
-\begin{verbatim}
-   \PassOptionsToPackage{options}{natbib}
-\end{verbatim}
-
-
-If \verb+natbib+ clashes with another package you load, you can add the optional
-argument \verb+nonatbib+ when loading the style file:
-\begin{verbatim}
-   \usepackage[nonatbib]{neurips_2025}
-\end{verbatim}
-
-
-As submission is double blind, refer to your own published work in the third
-person. That is, use ``In the previous work of Jones et al.\ [4],'' not ``In our
-previous work [4].'' If you cite your other papers that are not widely available
-(e.g., a journal paper under review), use anonymous author names in the
-citation, e.g., an author of the form ``A.\ Anonymous'' and include a copy of the anonymized paper in the supplementary material.
-
+Finalmente, traducimos la incertidumbre a una acci\'on cl\'inica mediante
+una pol\'itica de rechazo selectivo. Una muestra se deriva a revisi\'on
+humana cuando su incertidumbre epist\'emica excede un umbral
+$\tau_u$ calibrado en validaci\'on:
+\begin{equation}
+\mathrm{refer}(\mathbf{x})
+=
+\mathbb{I}\!\left[
+u_{\mathrm{epi}}(\mathbf{x}) > \tau_u
+\right].
+\label{eq:triage-rule}
+\end{equation}
+En lugar de fijar un valor absoluto com\'un a todos los m\'etodos,
+estimamos $\tau_u$ como el percentil 85 de la distribuci\'on de
+incertidumbre epist\'emica en validaci\'on para cada aproximaci\'on.
+Esto evita comparar en una misma escala magnitudes cuya calibraci\'on
+num\'erica depende del mecanismo de inferencia empleado.
 
 \subsection{Footnotes}
 
