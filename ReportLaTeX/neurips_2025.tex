@@ -213,7 +213,7 @@ es una red neuronal con pesos $\boldsymbol{\omega}\in\mathbb{R}^{P}$.
 Aunque el problema es binario, tomamos la parametrizaci\'on \textit{softmax}
 de dos dimensiones por cuestiones de compatibilidad con la librer\'ia
 \texttt{laplace-torch} (que asume salida categ\'orica) y con el mecanismo de 
-descomposición de la incertidumbre explicado en la SECCION4!. %Section \ref{sec:uncertainty}.
+descomposición de la incertidumbre explicado en la sección \ref{sec:uncertainty-method}.
  
 Asumimos un prior gaussiano isotr\'opico sobre los pesos,
 \begin{equation}
@@ -261,7 +261,7 @@ $0.05$;
 (ii)~una latencia de inferencia por imagen que sea compatible con la posible
 integraci\'on en una interfaz de un programa médico; y
 (iii)~un consumo de memoria que permita la ejecuci\'on en hardware de una cl\'inica u hospital estándar.
-Estos requisitos condicionan, como veremos en la SECCION2! % Secci\'on~\ref{sec:laplace},
+Estos requisitos condicionan, como veremos en la secci\'on~\ref{sec:laplace-method},
 la elecci\'on del subconjunto de pesos sobre el que aplicar Laplace y la
 estructura adoptada para el Hessiano.
 
@@ -356,7 +356,7 @@ Ambos enfoques producen un procedimiento para muestrear pesos y aproximar la int
 \end{equation}
 
 La diferencia reside en la definición de $p(\boldsymbol{\omega})$ y en el procedimiento para obtener las muestras $\boldsymbol{\omega}_{t}$,
-tal y como se explicará en la SECCION 4!.
+tal y como se explicará en la sección~\ref{sec:method}.
 
 % Sección 4: Metodología
 \section{Metodolog\'ia}
