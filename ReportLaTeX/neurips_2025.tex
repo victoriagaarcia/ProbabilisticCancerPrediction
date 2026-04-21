@@ -695,7 +695,7 @@ AUC-ROC, \emph{accuracy}, F1-score con umbral $0.5$, \emph{precision} y \emph{re
             NLL=-\tfrac{1}{N_{\mathrm{test}}}\sum_{i}\log p(y_{i}\mid\mathbf{x}_{i},\mathcal{D}).
         \end{equation}
   \item \textbf{Brier score}:
-        Combina en una \'unica cifra calibraci\'on y resoluci\'on.
+        Combina en una \'unica cifra calibraci\'on y resoluci\'on~\citep{gneiting2007strictly}.
         \begin{equation}
             \mathrm{BS}=\tfrac{1}{N_{\mathrm{test}}}\sum_{i}(p_{i}-y_{i})^{2}.
         \end{equation}
@@ -1022,35 +1022,70 @@ humana.
 % predictiva en forma cerrada para muchos casos, evitando el muestreo
 % expl\'icito.
 
-La Tabla~\ref{tab:efficiency} muestra el coste de inferencia de los tres modelos. MC Dropout
-es el m\'etodo m\'as costoso, como era previsible, ya que sus \(T=50\)
-pasadas estoc\'asticas incrementan el tiempo en \(\sim 2{.}7\times\)
-frente al modelo determinista. La aproximaci\'on de Laplace, en cambio,
-resulta m\'as r\'apida en nuestra implementaci\'on, ya que restringe la
-incertidumbre a la \'ultima capa y utiliza una regla predictiva GLM con
-aproximaci\'on \emph{probit}, evitando un muestreo expl\'icito costoso.
-En conjunto, los requisitos no funcionales de la Secci\'on~\ref{sec:requirements} se
-satisfacen: la calibraci\'on queda muy por debajo del objetivo
-(\(ECE=0{.}0047\ll 0{.}05\)) y la latencia de Laplace
-(47\,s para 33\,004 muestras, aproximadamente 700 parches por segundo)
-resulta compatible con un flujo asistido de revisi\'on.
+% La Tabla~\ref{tab:efficiency} muestra el coste de inferencia de los tres modelos. MC Dropout
+% es el m\'etodo m\'as costoso, como era previsible, ya que sus \(T=50\)
+% pasadas estoc\'asticas incrementan el tiempo en \(\sim 2{,}7\times\)
+% frente al modelo determinista. La aproximaci\'on de Laplace, en cambio,
+% resulta m\'as r\'apida en nuestra implementaci\'on, ya que restringe la
+% incertidumbre a la \'ultima capa y utiliza una regla predictiva GLM con
+% aproximaci\'on \emph{probit}, evitando un muestreo expl\'icito costoso.
+% En conjunto, los requisitos no funcionales de la Secci\'on~\ref{sec:requirements} se
+% satisfacen: la calibraci\'on queda muy por debajo del objetivo
+% (\(ECE=0{,}0047\ll 0{,}05\)) y la latencia de Laplace
+% (47\,s para 33\,004 muestras, aproximadamente 700 parches por segundo)
+% resulta compatible con un flujo asistido de revisi\'on.
+La Tabla \ref{tab:timing_benchmark} resume un \emph{benchmark} controlado de inferencia sobre 20
+batches de test previamente cargados en GPU, con el fin de excluir el
+coste del \texttt{DataLoader} y medir \'{u}nicamente el c\'omputo del
+modelo. En este escenario, el modelo determinista es el m\'as r\'apido
+(0,179\,s para 1280 im\'agenes), mientras que la ruta probabil\'istica
+media de Laplace basada en GLM-probit mantiene una latencia muy cercana
+(0,201\,s). Cuando se incluye tambi\'en la estimaci\'on de incertidumbre,
+Laplace alcanza 0,448\,s, aproximadamente \(2{,}5\times\) el coste del
+baseline, pero sigue siendo muy inferior a MC Dropout, que requiere
+8,831\,s debido a sus 50 pasadas estoc\'asticas. En conjunto, estos
+resultados indican que la aproximaci\'on de Laplace ofrece un compromiso
+favorable entre coste y utilidad probabil\'istica: la probabilidad media
+puede obtenerse con una sobrecarga m\'inima respecto al modelo
+determinista, y la inferencia completa con incertidumbre sigue siendo mucho
+m\'as eficiente que MC Dropout.
 
+% \begin{table}[t]
+%   \caption{Tiempo de inferencia sobre el conjunto de test completo
+%            ($N_{\mathrm{test}}\!=\!33\,004$). Hardware y versiones de
+%            librer\'ias documentados en el repositorio.}
+%   \label{tab:efficiency}
+%   \centering
+%   \small
+%   \begin{tabular}{lcc}
+%     \toprule
+%     Modelo             & Tiempo total (s) & Relativo al MAP \\
+%     \midrule
+%     Determinista (MAP) & $103{,}3$        & $1{,}00\times$ \\
+%     MC Dropout         & $281{,}8$        & $2{,}73\times$ \\
+%     Laplace (LL-KFAC)  & $\mathbf{47{,}0}$ & $\mathbf{0{,}46\times}$ \\
+%     \bottomrule
+%   \end{tabular}
+% \end{table}
 \begin{table}[t]
-  \caption{Tiempo de inferencia sobre el conjunto de test completo
-           ($N_{\mathrm{test}}\!=\!33\,004$). Hardware y versiones de
-           librer\'ias documentados en el repositorio.}
-  \label{tab:efficiency}
-  \centering
-  \small
-  \begin{tabular}{lcc}
-    \toprule
-    Modelo             & Tiempo total (s) & Relativo al MAP \\
-    \midrule
-    Determinista (MAP) & $103{.}3$        & $1{.}00\times$ \\
-    MC Dropout         & $281{.}8$        & $2{.}73\times$ \\
-    Laplace (LL-KFAC)  & $\mathbf{47{.}0}$ & $\mathbf{0{.}46\times}$ \\
-    \bottomrule
-  \end{tabular}
+\centering
+\caption{Benchmark controlado de inferencia sobre 20 batches de test
+(1280 im\'agenes) previamente cargados en GPU. Se reporta la media de 10
+repeticiones tras 3 iteraciones de \emph{warm-up}. ``Laplace (media)''
+corresponde a \texttt{predict\_proba} con regla GLM-probit, mientras que
+``Laplace (completo)'' corresponde a
+\texttt{predict\_with\_uncertainty}.}
+\label{tab:timing_benchmark}
+\begin{tabular}{lccc}
+\toprule
+Modelo & Tiempo total (s) & ms/imagen & Relativo al MAP \\
+\midrule
+MAP & 0,179 & 0,140 & 1,00$\times$ \\
+Laplace (media) & 0,201 & 0,157 & 1,12$\times$ \\
+Laplace (completo) & 0,448 & 0,350 & 2,50$\times$ \\
+MC Dropout & 8,831 & 6,899 & 49,29$\times$ \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 % En conjunto, los tres requisitos no funcionales establecidos en la
