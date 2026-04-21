@@ -85,19 +85,19 @@ streamlit run app.py
 
 ### Bayesian Neural Networks
 
-Instead of learning point estimates of weights $\omega^*$, BNNs learn a **posterior distribution** $p(\omega | \mathcal{D})$. Predictions integrate over this posterior:
+Instead of learning point estimates of weights $\omega^{*}$, BNNs learn a **posterior distribution** $p(\omega | \mathcal{D})$. Predictions integrate over this posterior:
 
-$$p(y^* | x^*, \mathcal{D}) = \int p(y^* | x^*, \omega) \, p(\omega | \mathcal{D}) \, d\omega$$
+$$p(y^{*} | x^{*}, \mathcal{D}) = \int p(y^{*} | x^{*}, \omega) \, p(\omega | \mathcal{D}) \, d\omega$$
 
 This integral is intractable for neural networks, so we use **approximate inference**.
 
 ### Laplace Approximation
 
-The key insight: once we have a trained model (MAP estimate $\omega^*$), we can approximate the posterior as a Gaussian centered at that point:
+The key insight: once we have a trained model (MAP estimate $\omega^{*}$), we can approximate the posterior as a Gaussian centered at that point:
 
-$$q(\omega) = \mathcal{N}(\omega \mid \omega^*, \Sigma), \quad \Sigma = \left( \mathbf{H} + \lambda \mathbf{I} \right)^{-1}$$
+$$q(\omega) = \mathcal{N}(\omega \mid \omega^{*}, \Sigma), \quad \Sigma = \left( \mathbf{H} + \lambda \mathbf{I} \right)^{-1}$$
 
-where $\mathbf{H}$ is the Hessian of the loss at $\omega^*$.
+where $\mathbf{H}$ is the Hessian of the loss at $\omega^{*}$.
 
 **Advantages:**
 - Post-hoc: no retraining required
@@ -112,7 +112,7 @@ where $\mathbf{H}$ is the Hessian of the loss at $\omega^*$.
 
 Dropout at test time can be interpreted as approximate variational inference:
 
-$$p(y^* | x^*) \approx \frac{1}{T} \sum_{t=1}^{T} p(y^* | x^*, \omega_t), \quad \omega_t \sim q(\omega)$$
+$$p(y^{*} | x^{*}) \approx \frac{1}{T} \sum_{t=1}^{T} p(y^{*} | x^{*}, \omega_t), \quad \omega_t \sim q(\omega)$$
 
 Each forward pass with a different dropout mask samples from an implicit posterior.
 
@@ -204,16 +204,20 @@ class LaplaceWrapper:
 
 ```python
 def predict_with_uncertainty(self, x, n_samples=50):
-    self.model.train()  # Keep dropout active!
-    
+    # Set eval mode to freeze BatchNorm, then re-enable only Dropout layers
+    self.model.eval()
+    for m in self.model.modules():
+        if isinstance(m, nn.Dropout):
+            m.train()
+
     preds = torch.stack([
-        torch.sigmoid(self.model(x)) 
+        torch.softmax(self.model(x), dim=1)
         for _ in range(n_samples)
     ])
-    
+
     mean_pred = preds.mean(dim=0)
     epistemic_uncertainty = preds.var(dim=0)
-    
+
     return mean_pred, epistemic_uncertainty
 ```
 
@@ -289,6 +293,7 @@ The generated figures and metrics support these report sections:
 
 ## 👥 Authors
 
-[Your names here]
+Elena Ardura
+Victoria García
 
 *Probabilistic AI - Master's Program, April 2026*
