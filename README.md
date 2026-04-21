@@ -87,7 +87,7 @@ streamlit run app.py
 
 Instead of learning point estimates of weights $\omega^{*}$, BNNs learn a **posterior distribution** $p(\omega | \mathcal{D})$. Predictions integrate over this posterior:
 
-$$p(y^{*} | x^{*}, \mathcal{D}) = \int p(y^{*} | x^{*}, \omega) \, p(\omega | \mathcal{D}) \, d\omega$$
+$$p(y^* | x^*, \mathcal{D}) = \int p(y^* | x^*, \omega) \, p(\omega | \mathcal{D}) \, d\omega$$
 
 This integral is intractable for neural networks, so we use **approximate inference**.
 
@@ -112,7 +112,7 @@ where $\mathbf{H}$ is the Hessian of the loss at $\omega^{*}$.
 
 Dropout at test time can be interpreted as approximate variational inference:
 
-$$p(y^{*} | x^{*}) \approx \frac{1}{T} \sum_{t=1}^{T} p(y^{*} | x^{*}, \omega_t), \quad \omega_t \sim q(\omega)$$
+$$p(y^* | x^*) \approx \frac{1}{T} \sum_{t=1}^{T} p(y^* | x^*, \omega_t), \quad \omega_t \sim q(\omega)$$
 
 Each forward pass with a different dropout mask samples from an implicit posterior.
 
