@@ -248,40 +248,6 @@ figures/
 
 ---
 
-## 📝 Report Sections
-
-The generated figures and metrics support these report sections:
-
-1. **Introduction**: Clinical motivation for uncertainty quantification
-2. **Methods**: 
-   - Deterministic CNN architecture
-   - Laplace approximation theory
-   - MC Dropout interpretation
-3. **Experiments**:
-   - Dataset description (70/15/15 split)
-   - Training procedure (Adam, weight decay as prior)
-   - Evaluation protocol
-4. **Results**:
-   - Classification performance comparison
-   - Calibration analysis (reliability diagrams)
-   - Uncertainty analysis (high-uncertainty cases)
-5. **Discussion**:
-   - Laplace vs MC Dropout trade-offs
-   - Clinical applicability
-   - Limitations
-
----
-
-## ⚠️ Known Limitations
-
-1. **Last-layer Laplace**: We only apply Laplace to the final layer for tractability. Full-network Laplace would be more principled but O(P³) in parameters.
-
-2. **Prior sensitivity**: The weight decay (= prior precision) significantly affects uncertainty estimates. We use marginal likelihood optimization to mitigate this.
-
-3. **Out-of-distribution detection**: These methods are designed for in-distribution uncertainty. For OOD detection, consider adding input preprocessing or dedicated OOD methods.
-
----
-
 ## 📚 References
 
 - Daxberger et al. (2021). "Laplace Redux: Effortless Bayesian Deep Learning"
@@ -293,7 +259,6 @@ The generated figures and metrics support these report sections:
 
 ## 👥 Authors
 
-Elena Ardura
-Victoria García
+Elena Ardura and Victoria García
 
 *Probabilistic AI - Master's Program, April 2026*
