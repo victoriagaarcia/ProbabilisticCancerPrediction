@@ -176,7 +176,7 @@ Disponemos de un conjunto de datos (dataset \href{https://www.kaggle.com/c/histo
 $\mathcal{D}=\{(\mathbf{x}_{i},y_{i})\}_{i=1}^{N}$
 con im\'agenes $\mathbf{x}_{i}\in\mathbb{R}^{3\times 96\times 96}$ y
 etiquetas binarias $y_{i}\in\{0,1\}$ que indican la presencia o
-ausencia de tejido tumoral la región central (32x32) de la imagen. 
+ausencia de tejido tumoral en la región central (32x32) de la imagen. 
 Modelizamos la verosimilitud como
 categ\'orica sobre dos clases,
 \begin{equation}
@@ -296,16 +296,13 @@ modelo, pero difieren en la forma en que aproximan
 Los tres modelos se construyen sobre una misma arquitectura base,
 concretamente una ResNet18 preentrenada en ImageNet, que act\'ua como
 extractor de caracter\'isticas para la clasificaci\'on binaria de parches
-histopatol\'ogicos. Sea
-\(g_{\boldsymbol{\phi}}(\mathbf{x})\in\mathbb{R}^{512}\)
-la representaci\'on producida por el backbone para una imagen
-\(\mathbf{x}\in\mathbb{R}^{3\times 96\times 96}\). Siguiendo una
-estrategia de \emph{fine-tuning} parcial, congelamos los bloques
-\texttt{conv1}, \texttt{bn1}, \texttt{layer1} y \texttt{layer2}, y
+histopatol\'ogicos. Dada una imagen
+\(\mathbf{x}\in\mathbb{R}^{3\times 96\times 96}\), el backbone produce un
+vector de caracter\'isticas \(g_{\boldsymbol{\phi}}(\mathbf{x})\in\mathbb{R}^{512}\).
+Siguiendo una estrategia de \emph{fine-tuning} parcial, congelamos los
+bloques \texttt{conv1}, \texttt{bn1}, \texttt{layer1} y \texttt{layer2}, y
 entrenamos \'unicamente \texttt{layer3}, \texttt{layer4} y la cabeza
-clasificadora. Esta decisi\'on reduce el n\'umero de par\'ametros
-efectivamente optimizados y preserva representaciones visuales
-gen\'ericas aprendidas en ImageNet.
+clasificadora.
 
 El modelo determinista sustituye la capa totalmente conectada original
 por una proyecci\'on lineal
@@ -325,7 +322,7 @@ verosimilitud categ\'orica de la Secci\'on~\ref{sec:model}.
 En MC Dropout mantenemos el mismo backbone, pero reemplazamos la cabeza
 por un peque\~no bloque estoc\'astico
 \begin{equation}
-h \mapsto
+h \mapsto q
 \mathrm{Linear}_{256\rightarrow 2}
 \!\Bigl(
 \mathrm{Dropout}_{p}
@@ -379,7 +376,7 @@ MAP a partir del cual se construye la aproximaci\'on de Laplace.
 \paragraph{Aproximaci\'on local del posterior.}
 La aproximaci\'on de Laplace reemplaza el posterior exacto
 \(p(\boldsymbol{\omega}\mid\mathcal{D})\) por una Gaussiana centrada en
-el modo MAP. Si expandimos el log-posterior alrededor de
+el m\'aximo a posteriori \(\omega^*\). Si expandimos el log-posterior alrededor de
 \(\boldsymbol{\omega}^{*}\) mediante Taylor de segundo orden, obtenemos
 \begin{equation}
 \log p(\boldsymbol{\omega}\mid\mathcal{D})
@@ -416,9 +413,11 @@ q(\boldsymbol{\omega})
 \label{eq:laplace-posterior}
 \end{equation}
 donde \(\lambda_{\mathrm{LA}}\) es la precisi\'on del prior efectiva
-usada por Laplace. N\'otese que distinguimos \(\lambda_{\mathrm{LA}}\)
-del \emph{weight decay} de entrenamiento: el primero se re-estima
-\emph{post-hoc} maximizando verosimilitud marginal aproximada.
+usada por Laplace. Distinguimos \(\lambda_{\mathrm{LA}}\) del \emph{weight decay} usado en el
+entrenamiento: este \'ultimo fija la regularizaci\'on del modelo MAP,
+mientras que \(\lambda_{\mathrm{LA}}\) se re-estima despu\'es para ajustar
+la aproximaci\'on de Laplace maximizando una verosimilitud marginal
+aproximada.
 
 \paragraph{Laplace solo sobre la \'ultima capa.}
 Aplicar \eqref{eq:laplace-posterior} a todos los pesos de una ResNet18
@@ -440,9 +439,9 @@ q(\boldsymbol{\psi})
 \bigr).
 \label{eq:last-layer-laplace}
 \end{equation}
-Esta decisi\'on conserva el grueso de la incertidumbre
-\emph{task-specific} del clasificador con un coste muy inferior al de
-una Laplace de red completa.
+Esta decisi\'on conserva gran parte de la incertidumbre \emph{task-specific}, al concentrarse en la capa m\'as pr\'oxima a la decisi\'on final,
+con un coste muy inferior al de una aproximaci\'on de Laplace sobre la red
+completa
 
 \paragraph{Curvatura y estructura del Hessiano.}
 Para obtener una aproximaci\'on estable del posterior empleamos la
@@ -507,7 +506,7 @@ salida linealizada de la \'ultima capa. Denotando por
 p_{\mathrm{GLM\text{-}probit}}(y=1\mid \mathbf{x},\mathcal{D}).
 \label{eq:laplace-glm}
 \end{equation}
-Adicionalmente, para cuantificar incertidumbre epist\'emica extraemos
+Adicionalmente, para cuantificar la incertidumbre epist\'emica extraemos
 \(T_{\mathrm{LA}}=100\) muestras posteriores
 \(\boldsymbol{\psi}^{(t)}\sim q(\boldsymbol{\psi})\) y calculamos
 \begin{equation}
@@ -1082,7 +1081,7 @@ en calibraci\'on: Laplace obtiene el mejor ECE ($0{.}0047$), Brier y
 NLL, y separa las incertidumbres de aciertos y fallos con un ratio de
 $13{.}07\times$ frente a $7{.}19\times$ de MC Dropout, en coherencia
 con la mayor fidelidad del Hessiano GGN al log-posterior local.
-La descomposici\'on aleatoria--epist\'emica revela que, en este
+La descomposici\'on aleatoria--epist\'emica muestra que, en este
 r\'egimen de datos abundantes, la incertidumbre residual es
 mayoritariamente aleatoria, lo que justifica emplear $u_{\mathrm{epi}}$
 como se\~nal de triaje: derivando el $15\%$ de los casos m\'as inciertos,
@@ -1094,9 +1093,9 @@ despliegue real depender\'ia de criterios t\'ecnicos ---Laplace es
 al determinista; MC Dropout es m\'as sencillo de integrar en
 arquitecturas con dropout pero multiplica ese tiempo por $2{.}7$.
  
-Las principales limitaciones del estudio son la naturaleza local y unimodal
+Las principales limitaciones del estudio son el car\'acter local y unimodal
 de la aproximaci\'on gaussiana de Laplace, la restricci\'on a la \'ultima
-capa, la elecci\'on manual del \texttt{DROPOUT\_RATE} en MC Dropout, y
+capa, la elecci\'on manual de la tasa de dropout en MC Dropout, y
 la evaluaci\'on sobre un \'unico dataset que no garantiza generalizaci\'on
 ante cambios de protocolo de tinci\'on o equipo de digitalizaci\'on. Como
 trabajo futuro, resultar\'ia de inter\'es comparar con Deep Ensembles,
@@ -1112,6 +1111,8 @@ tasa de derivaci\'on sobre una m\'etrica de negocio real.
 
 \section{Estudio de diferentes m\'etodos de inferencia aproximada}
 \label{sec:appendix-methods}
+La tabla ~\ref{tab:methods} resume los compromisos
+pr\'acticos que motivan la elecci\'on de Laplace y MC Dropout, complementando la explicaci\'on de la Secci\'on~\ref{sec:methods-tradeoff}.
 
 \begin{table}[h!]
   \caption{Compromisos entre m\'etodos de inferencia aproximada en BNN.
